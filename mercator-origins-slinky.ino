@@ -21,13 +21,10 @@ const uint8_t ESPNOW_CHANNEL=1;
 
 #include "mercator_secrets.c"
 
-
 // I2C Light Sensor
 // see https://github.com/Starmbi/hp_BH1750
 #include <hp_BH1750.h>
 hp_BH1750 BH1750;
-
-
 
 // I2C Time of Flight sensor. Adafruit VL53L4CX
 // see https://learn.adafruit.com/adafruit-vl53l4cx-time-of-flight-distance-sensor
