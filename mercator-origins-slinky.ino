@@ -1,6 +1,11 @@
+// Mark B. Jones - Scuba Hacker! - 20 May 2023 - MIT Licence
+//
 // Slinky is the audio module for Mercator Origins
-// This is going to turn into the code for running on the Beetle ESP32-C3 (Risc-V Core Development Board)
+//
+// Integration info for the Adafruit SPI Flash SD Card - XTSD 512MB with the Beetle ESP32-C3 dev board
 // https://www.dfrobot.com/product-2566.html
+// https://learn.adafruit.com/adafruit-spi-flash-sd-card
+// https://randomnerdtutorials.com/esp32-microsd-card-arduino/
 
 #include "FS.h"
 #include "SD.h"
