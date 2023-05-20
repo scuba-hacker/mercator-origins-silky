@@ -8,3 +8,9 @@
  3. DFRobot MAX98357A I2S Audio Amplifier
  4. Adafruit BH1750 Light sensor
  5. Adafruit VL53L4CX Time Of Flight Sensor 
+
+Other functionality integated and enabled:
+
+1. Elegant OTA over the air code updates.
+2. ESPNow Slave data receive capability.
+
