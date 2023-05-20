@@ -1,7 +1,7 @@
-# mercator-origins-slinky
+# mercator-origins-silky
  This is the audio module for Mercator Origins. Runs on a Beetle ESP32-C3 RISC-V Development Board.
  
- The following PCBs are driven/coded up for and integrated by Slinky:
+ The following PCBs are driven/coded up for and integrated by Silky:
  
  1. Beetle ESP32-C Dev Board
       https://wiki.dfrobot.com/SKU_DFR0868_Beetle_ESP32_C3
