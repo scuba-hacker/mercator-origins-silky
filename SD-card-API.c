@@ -1,64 +1,4 @@
-// Slinky is the audio module for Mercator Origins
-// This is going to turn into the code for running on the Beetle ESP32-C3 (Risc-V Core Development Board)
-// https://www.dfrobot.com/product-2566.html
-
-#include "FS.h"
-#include "SD.h"
-#include "SPI.h"
-
-//#include "SD-card-API.h"
-
-const int beetleLed = 10;
-const uint8_t SD_CHIP_SELECT_PIN = 2;
-
-uint8_t cardType = 0;
-
-void setup()
-{
-  pinMode(beetleLed,OUTPUT);
-
-  // LED flash - we're alive!
-  Serial.begin(115200);
-  int warmUp=3;
-  
-  while (warmUp--)
-  {
-    digitalWrite(beetleLed,HIGH);
-    delay(250);
-    digitalWrite(beetleLed,LOW);
-    delay(250);
-    Serial.println("Warming up...");
-  }
-  Serial.println("\nHere we go...");
-
-  if(!SD.begin(SD_CHIP_SELECT_PIN))
-  {
-      Serial.println("Card Mount Failed");
-      return;
-  }
-  
-  cardType = SD.cardType();
-
-  if(cardType == CARD_NONE)
-  {
-      Serial.println("No SD card attached");
-      return;
-  }
-  
-  testFileIO();
-}
-
-void loop() 
-{
-
-}
-
-
-
-
-
-
-
+/*
 // ----- I WANT THIS CODE TO BE RUNNING FROM SD-card-API.c
 // ----- but the Arduino IDE won't compile it... Help!
 void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
@@ -257,3 +197,4 @@ void testFlashFileIO(fs::FS &fs, const char * path){
     Serial.printf("%u bytes written for %u ms file: %s\n", 2048 * 512, end, path);
     file.close(); 
 }
+*/
