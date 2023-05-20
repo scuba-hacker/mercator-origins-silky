@@ -7,6 +7,10 @@
 // https://learn.adafruit.com/adafruit-spi-flash-sd-card
 // https://randomnerdtutorials.com/esp32-microsd-card-arduino/
 
+// Tutorial for getting files onto the Flash/SD by uploading to esp32:
+//    https://community.appinventor.mit.edu/t/esp32-wifi-webserver-upload-file-from-app-to-esp32-sdcard-reader-littlefs/28126/3
+
+
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
