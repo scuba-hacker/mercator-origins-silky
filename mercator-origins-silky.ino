@@ -1,6 +1,6 @@
 // Mark B. Jones - Scuba Hacker! - 20 May 2023 - MIT Licence
 //
-// Slinky is the audio module for Mercator Origins
+// Silky is the audio module for Mercator Origins
 //
 // Integration info for the Adafruit SPI Flash SD Card - XTSD 512MB with the Beetle ESP32-C3 dev board
 // https://www.dfrobot.com/product-2566.html
