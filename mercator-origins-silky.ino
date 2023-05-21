@@ -6,6 +6,9 @@
 // https://www.dfrobot.com/product-2566.html
 // https://learn.adafruit.com/adafruit-spi-flash-sd-card
 // https://randomnerdtutorials.com/esp32-microsd-card-arduino/
+//
+// Time of flight sensor:
+// https://www.st.com/en/imaging-and-photonics-solutions/vl53l4cx.html
 
 // Tutorial for getting files onto the Flash/SD by uploading to esp32:
 //    https://community.appinventor.mit.edu/t/esp32-wifi-webserver-upload-file-from-app-to-esp32-sdcard-reader-littlefs/28126/3
@@ -73,7 +76,7 @@ void setup()
 
   // LED flash - we're alive!
   Serial.begin(115200);
-  int warmUp=10;
+  int warmUp=20;
   
   while (warmUp--)
   {
@@ -100,6 +103,9 @@ void setup()
       return;
   }
 
+  //
+  DEV_I2C.begin();
+
   if (enableLightSensor)
   {
     lightSensorAvailable = BH1750.begin(BH1750_TO_GROUND);// init the sensor with address pin connetcted to ground
@@ -112,17 +118,18 @@ void setup()
 
   if (enableTimeOfFlightSensor)
   {
-    // Configure VL53L4CX satellite component.
+    // Configure VL53L4CX
     sensor_vl53l4cx_sat.begin();
   
-    // Switch off VL53L4CX satellite component.
+    // Switch off VL53L4CX
     sensor_vl53l4cx_sat.VL53L4CX_Off();
 
-    //Initialize VL53L4CX satellite component.
+    //Initialize VL53L4CX
     VL53L4CX_Error initError = sensor_vl53l4cx_sat.InitSensor(0x12);
+
     if (initError == VL53L4CX_ERROR_NONE)
     {
-      Serial.println("Adafruit VL53L4CX Time Of Flight Sensor Initialise ok");
+      Serial.println("Adafruit VL53L4CX Time Of Flight Sensor Initialised ok");
 
       VL53L4CX_Error measureError = sensor_vl53l4cx_sat.VL53L4CX_StartMeasurement();  
 
@@ -133,14 +140,14 @@ void setup()
       }
       else
       {
-        char* TOFErrorBuffer = getTimeOfFlightSensorErrorString(measureError);
-        Serial.printf("Error: Adafruit VL53L4CX Time Of Flight Sensor startup measurement error: %i %s\n",measureError, TOFErrorBuffer);
+        const char* TOFErrorBuffer = getTimeOfFlightSensorErrorString(measureError);
+        Serial.printf("\nError: Adafruit VL53L4CX Time Of Flight Sensor startup measurement error: %i %s\n",measureError, TOFErrorBuffer);
         timeOfFlightSensorAvailable = false;
       }
     }
     else
     {
-      char* TOFErrorBuffer = getTimeOfFlightSensorErrorString(initError);
+      const char* TOFErrorBuffer = getTimeOfFlightSensorErrorString(initError);
       Serial.printf("Error: Adafruit VL53L4CX Time Of Flight Sensor initialisation error: %i %s\n",initError, TOFErrorBuffer); 
       timeOfFlightSensorAvailable = false;
     }
@@ -164,26 +171,38 @@ void setup()
 
   testFileIO();
 
-  while ( !amplifier.initI2S(I2S_AMP_BCLK_PIN, I2S_AMP_LRCLK_PIN, I2S_AMP_DIN_PIN) ){
+  while ( !amplifier.initI2S(I2S_AMP_BCLK_PIN, I2S_AMP_LRCLK_PIN, I2S_AMP_DIN_PIN) )
+  {
     Serial.println("Initialize I2S failed !");
     delay(3000);
   }
-  while (!amplifier.initSDCard(SD_CHIP_SELECT_PIN)){
+  
+  while (!amplifier.initSDCard(SD_CHIP_SELECT_PIN))
+  {
     Serial.println("Initialize SD card failed !");
     delay(3000);
   }
+  
   Serial.println("Initialize succeed!");
+  
   amplifier.scanSDMusic(musicList);
+  
   printMusicList();
+  
   amplifier.setVolume(5);
   amplifier.closeFilter();
   amplifier.openFilter(bq_type_highpass, 500);
   amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
-  delay(5000);   
-  if(musicList[1].length()){
+  
+  delay(5000);
+  
+  if(musicList[1].length())
+  {
     Serial.println("Changing Music...\n");
     amplifier.playSDMusic(musicList[1].c_str());
-  }else{
+  }
+  else
+  {
     Serial.println("The currently selected music file is incorrect!\n");
   }
 }
@@ -245,7 +264,7 @@ void loop()
   {
     float lux=0.0;
     getLux(lux);
-    Serial.printf("Lux Sensor: %f\n",lux);
+    Serial.printf("Lux Sensor: %f, ",lux);
   }
 
   if (timeOfFlightSensorAvailable)
@@ -254,7 +273,7 @@ void loop()
     // 16:10:23.892 -> Error: Adafruit VL53L4CX Time Of Flight Sensor initialisation error: 2 Undefined enum
     // could be that I have a new firmware version of the sensor that has additional error codes
     // deal with it later.
-//    takeTimeOfFlightMeasurementAndWriteToSerial();
+    takeTimeOfFlightMeasurementAndWriteToSerial();
   }
 }
 
@@ -286,9 +305,12 @@ void takeTimeOfFlightMeasurementAndWriteToSerial()
   if ((!status) && (NewDataReady != 0)) 
   {
     status = sensor_vl53l4cx_sat.VL53L4CX_GetMultiRangingData(pMultiRangingData);
+    
     no_of_object_found = pMultiRangingData->NumberOfObjectsFound;
+    
     snprintf(report, sizeof(report), "VL53L4CX Satellite: Count=%d, #Objs=%1d ", pMultiRangingData->StreamCount, no_of_object_found);
     Serial.print(report);
+    
     for (j = 0; j < no_of_object_found; j++) 
     {
       if (j != 0) 
