@@ -69,6 +69,7 @@ const int beetleLed = 10;
 const uint8_t I2S_AMP_BCLK_PIN = GPIO_NUM_0;
 const uint8_t I2S_AMP_LRCLK_PIN = GPIO_NUM_1;
 const uint8_t I2S_AMP_DIN_PIN = GPIO_NUM_7;
+
 const uint8_t SD_CHIP_SELECT_PIN = GPIO_NUM_2;
 
 uint8_t cardType = 0;
