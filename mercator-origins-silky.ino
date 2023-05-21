@@ -188,14 +188,13 @@ void setup()
   }
 #endif
 
-//  while ( !amplifier.initI2S(I2S_AMP_BCLK_PIN, I2S_AMP_LRCLK_PIN, I2S_AMP_DIN_PIN) )
-  while ( !amplifier.begin(I2S_AMP_BCLK_PIN, I2S_AMP_LRCLK_PIN, I2S_AMP_DIN_PIN) )
+  while ( !amplifier.initI2S(I2S_AMP_BCLK_PIN, I2S_AMP_LRCLK_PIN, I2S_AMP_DIN_PIN) )
   {
-    Serial.println("Begin I2S Amplifier failed!");
+    Serial.println("Init I2S Amplifier failed!");
     delay(3000);
   }
 
-  Serial.println("Begin I2S Amplifier succeeded");    
+  Serial.println("Init I2S Amplifier succeeded");    
   
   testFileIO();
 
@@ -222,8 +221,6 @@ void setup()
 
   Serial.println("I2S Amplifier play music file from SD Card function completed");
 
-  delay(5000);
-  
   if(musicList[1].length())
   {
     Serial.println("Changing Music...\n");
@@ -235,60 +232,10 @@ void setup()
   }
 }
 
-char* getTimeOfFlightSensorErrorString(VL53L4CX_Error e)
-{
-  switch (e)
-  {
-    case VL53L4CX_ERROR_NONE: return "VL53L4CX_ERROR_NONE";
-    case VL53L4CX_ERROR_CALIBRATION_WARNING: return "VL53L4CX_ERROR_CALIBRATION_WARNING";
-    case VL53L4CX_ERROR_MIN_CLIPPED: return "VL53L4CX_ERROR_MIN_CLIPPED";
-    case VL53L4CX_ERROR_UNDEFINED: return "VL53L4CX_ERROR_UNDEFINED";
-    case VL53L4CX_ERROR_INVALID_PARAMS: return "VL53L4CX_ERROR_INVALID_PARAMS";
-    case VL53L4CX_ERROR_NOT_SUPPORTED: return "VL53L4CX_ERROR_NOT_SUPPORTED";
-    case VL53L4CX_ERROR_RANGE_ERROR: return "VL53L4CX_ERROR_RANGE_ERROR";
-    case VL53L4CX_ERROR_TIME_OUT: return "VL53L4CX_ERROR_TIME_OUT";
-    case VL53L4CX_ERROR_MODE_NOT_SUPPORTED: return "VL53L4CX_ERROR_MODE_NOT_SUPPORTED";
-    case VL53L4CX_ERROR_BUFFER_TOO_SMALL: return "VL53L4CX_ERROR_BUFFER_TOO_SMALL";
-    case VL53L4CX_ERROR_COMMS_BUFFER_TOO_SMALL: return "VL53L4CX_ERROR_COMMS_BUFFER_TOO_SMALL";
-    case VL53L4CX_ERROR_GPIO_NOT_EXISTING: return "VL53L4CX_ERROR_GPIO_NOT_EXIS";
-    case VL53L4CX_ERROR_GPIO_FUNCTIONALITY_NOT_SUPPORTED: return "VL53L4CX_ERROR_GPIO_FUNCTIONALITY_NOT_SUPPORTED";
-    case VL53L4CX_ERROR_CONTROL_INTERFACE: return "VL53L4CX_ERROR_CONTROL_INTERFACE";
-    case VL53L4CX_ERROR_INVALID_COMMAND: return "VL53L4CX_ERROR_INVALID_COMMAND";
-    case VL53L4CX_ERROR_DIVISION_BY_ZERO : return "VL53L4CX_ERROR_DIVISION_BY_ZERO";
-    case VL53L4CX_ERROR_REF_SPAD_INIT: return "VL53L4CX_ERROR_REF_SPAD_INIT";
-    case VL53L4CX_ERROR_GPH_SYNC_CHECK_FAIL: return "VL53L4CX_ERROR_GPH_SYNC_CHECK_FAIL";
-    case VL53L4CX_ERROR_STREAM_COUNT_CHECK_FAIL: return "VL53L4CX_ERROR_STREAM_COUNT_CHECK_FAIL";
-    case VL53L4CX_ERROR_GPH_ID_CHECK_FAIL: return "VL53L4CX_ERROR_GPH_ID_CHECK_FAIL";
-    case VL53L4CX_ERROR_ZONE_STREAM_COUNT_CHECK_FAIL: return "VL53L4CX_ERROR_ZONE_STREAM_COUNT_CHECK_FAIL";
-    case VL53L4CX_ERROR_ZONE_GPH_ID_CHECK_FAIL: return "VL53L4CX_ERROR_ZONE_GPH_ID_CHECK_FAIL";
-    case VL53L4CX_ERROR_XTALK_EXTRACTION_NO_SAMPLE_FAIL: return "VL53L4CX_ERROR_XTALK_EXTRACTION_NO_SAMPLE_F";
-    case VL53L4CX_ERROR_XTALK_EXTRACTION_SIGMA_LIMIT_FAIL: return "VL53L4CX_ERROR_XTALK_EXTRACTION_SIGMA_LIMIT_";
-    case VL53L4CX_ERROR_OFFSET_CAL_NO_SAMPLE_FAIL: return "VL53L4CX_ERROR_OFFSET_CAL_NO_SAMPLE_FAIL";
-    case VL53L4CX_ERROR_OFFSET_CAL_NO_SPADS_ENABLED_FAIL: return "VL53L4CX_ERROR_OFFSET_CAL_NO_SPADS_ENABLED_FAIL";
-    case VL53L4CX_ERROR_ZONE_CAL_NO_SAMPLE_FAIL: return "VL53L4CX_ERROR_ZONE_CAL_NO_SAMPLE_FAIL";
-    case VL53L4CX_ERROR_TUNING_PARM_KEY_MISMATCH: return "VL53L4CX_WARNING_REF_SPAD_CHAR_NOT_ENOUGH_SPADS";
-    case VL53L4CX_WARNING_REF_SPAD_CHAR_NOT_ENOUGH_SPADS: return "VL53L4CX_WARNING_REF_SPAD_CHAR_NOT_ENOUGH_SPADS";
-    case VL53L4CX_WARNING_REF_SPAD_CHAR_RATE_TOO_HIGH: return "VL53L4CX_WARNING_REF_SPAD_CHAR_RATE_TOO_HIGH";
-    case VL53L4CX_WARNING_REF_SPAD_CHAR_RATE_TOO_LOW: return "VL53L4CX_WARNING_REF_SPAD_CHAR_RATE_TOO_LOW";
-    case VL53L4CX_WARNING_OFFSET_CAL_MISSING_SAMPLES: return "VL53L4CX_WARNING_OFFSET_CAL_MISSING_SAMPLES";
-    case VL53L4CX_WARNING_OFFSET_CAL_SIGMA_TOO_HIGH: return "VL53L4CX_WARNING_OFFSET_CAL_SIGMA_TOO_HIGH";
-    case VL53L4CX_WARNING_OFFSET_CAL_RATE_TOO_HIGH: return "VL53L4CX_WARNING_OFFSET_CAL_RATE_TOO_HI";
-    case VL53L4CX_WARNING_OFFSET_CAL_SPAD_COUNT_TOO_LOW: return "VL53L4CX_WARNING_OFFSET_CAL_SPAD_COUNT_TOO_LOW";
-    case VL53L4CX_WARNING_ZONE_CAL_MISSING_SAMPLES: return "VL53L4CX_WARNING_ZONE_CAL_MISSING_SAMPLES";
-    case VL53L4CX_WARNING_ZONE_CAL_SIGMA_TOO_HIGH: return "VL53L4CX_WARNING_ZONE_CAL_SIGMA_TOO_HIGH";
-    case VL53L4CX_WARNING_ZONE_CAL_RATE_TOO_HIGH: return "VL53L4CX_WARNING_ZONE_CAL_RATE_TOO_HIGH";
-    case VL53L4CX_WARNING_XTALK_MISSING_SAMPLES: return "VL53L4CX_WARNING_XTALK_MISSING_SAMPLES";
-    case VL53L4CX_WARNING_XTALK_NO_SAMPLES_FOR_GRADIENT: return "VL53L4CX_WARNING_XTALK_NO_SAMPLES_FOR_GRADIENT";
-    case VL53L4CX_WARNING_XTALK_SIGMA_LIMIT_FOR_GRADIENT: return "VL53L4CX_WARNING_XTALK_SIGMA_LIMIT_FOR_GRADIENT";
-    case VL53L4CX_ERROR_NOT_IMPLEMENTED: return "VL53L4CX_ERROR_NOT_IMPLEMENTED";
-    case VL53L4CX_ERROR_PLATFORM_SPECIFIC_START: return "VL53L4CX_ERROR_PLATFORM_SPECIFIC_START";
-    default: return "Undefined enum";
-  }
-}
 
 void loop() 
 {
-  /*
+/*
   if (lightSensorAvailable)
   {
     float lux=0.0;
@@ -305,7 +252,13 @@ void loop()
     takeTimeOfFlightMeasurementAndWriteToSerial();
   }
   */
+
+  parseSerialCommand();
+  delay(500);
 }
+
+
+
 
 void getLux(float &l)
 {
@@ -368,6 +321,57 @@ void takeTimeOfFlightMeasurementAndWriteToSerial()
     }
   }
   digitalWrite(beetleLed, LOW);
+}
+
+char* getTimeOfFlightSensorErrorString(VL53L4CX_Error e)
+{
+  switch (e)
+  {
+    case VL53L4CX_ERROR_NONE: return "VL53L4CX_ERROR_NONE";
+    case VL53L4CX_ERROR_CALIBRATION_WARNING: return "VL53L4CX_ERROR_CALIBRATION_WARNING";
+    case VL53L4CX_ERROR_MIN_CLIPPED: return "VL53L4CX_ERROR_MIN_CLIPPED";
+    case VL53L4CX_ERROR_UNDEFINED: return "VL53L4CX_ERROR_UNDEFINED";
+    case VL53L4CX_ERROR_INVALID_PARAMS: return "VL53L4CX_ERROR_INVALID_PARAMS";
+    case VL53L4CX_ERROR_NOT_SUPPORTED: return "VL53L4CX_ERROR_NOT_SUPPORTED";
+    case VL53L4CX_ERROR_RANGE_ERROR: return "VL53L4CX_ERROR_RANGE_ERROR";
+    case VL53L4CX_ERROR_TIME_OUT: return "VL53L4CX_ERROR_TIME_OUT";
+    case VL53L4CX_ERROR_MODE_NOT_SUPPORTED: return "VL53L4CX_ERROR_MODE_NOT_SUPPORTED";
+    case VL53L4CX_ERROR_BUFFER_TOO_SMALL: return "VL53L4CX_ERROR_BUFFER_TOO_SMALL";
+    case VL53L4CX_ERROR_COMMS_BUFFER_TOO_SMALL: return "VL53L4CX_ERROR_COMMS_BUFFER_TOO_SMALL";
+    case VL53L4CX_ERROR_GPIO_NOT_EXISTING: return "VL53L4CX_ERROR_GPIO_NOT_EXIS";
+    case VL53L4CX_ERROR_GPIO_FUNCTIONALITY_NOT_SUPPORTED: return "VL53L4CX_ERROR_GPIO_FUNCTIONALITY_NOT_SUPPORTED";
+    case VL53L4CX_ERROR_CONTROL_INTERFACE: return "VL53L4CX_ERROR_CONTROL_INTERFACE";
+    case VL53L4CX_ERROR_INVALID_COMMAND: return "VL53L4CX_ERROR_INVALID_COMMAND";
+    case VL53L4CX_ERROR_DIVISION_BY_ZERO : return "VL53L4CX_ERROR_DIVISION_BY_ZERO";
+    case VL53L4CX_ERROR_REF_SPAD_INIT: return "VL53L4CX_ERROR_REF_SPAD_INIT";
+    case VL53L4CX_ERROR_GPH_SYNC_CHECK_FAIL: return "VL53L4CX_ERROR_GPH_SYNC_CHECK_FAIL";
+    case VL53L4CX_ERROR_STREAM_COUNT_CHECK_FAIL: return "VL53L4CX_ERROR_STREAM_COUNT_CHECK_FAIL";
+    case VL53L4CX_ERROR_GPH_ID_CHECK_FAIL: return "VL53L4CX_ERROR_GPH_ID_CHECK_FAIL";
+    case VL53L4CX_ERROR_ZONE_STREAM_COUNT_CHECK_FAIL: return "VL53L4CX_ERROR_ZONE_STREAM_COUNT_CHECK_FAIL";
+    case VL53L4CX_ERROR_ZONE_GPH_ID_CHECK_FAIL: return "VL53L4CX_ERROR_ZONE_GPH_ID_CHECK_FAIL";
+    case VL53L4CX_ERROR_XTALK_EXTRACTION_NO_SAMPLE_FAIL: return "VL53L4CX_ERROR_XTALK_EXTRACTION_NO_SAMPLE_F";
+    case VL53L4CX_ERROR_XTALK_EXTRACTION_SIGMA_LIMIT_FAIL: return "VL53L4CX_ERROR_XTALK_EXTRACTION_SIGMA_LIMIT_";
+    case VL53L4CX_ERROR_OFFSET_CAL_NO_SAMPLE_FAIL: return "VL53L4CX_ERROR_OFFSET_CAL_NO_SAMPLE_FAIL";
+    case VL53L4CX_ERROR_OFFSET_CAL_NO_SPADS_ENABLED_FAIL: return "VL53L4CX_ERROR_OFFSET_CAL_NO_SPADS_ENABLED_FAIL";
+    case VL53L4CX_ERROR_ZONE_CAL_NO_SAMPLE_FAIL: return "VL53L4CX_ERROR_ZONE_CAL_NO_SAMPLE_FAIL";
+    case VL53L4CX_ERROR_TUNING_PARM_KEY_MISMATCH: return "VL53L4CX_WARNING_REF_SPAD_CHAR_NOT_ENOUGH_SPADS";
+    case VL53L4CX_WARNING_REF_SPAD_CHAR_NOT_ENOUGH_SPADS: return "VL53L4CX_WARNING_REF_SPAD_CHAR_NOT_ENOUGH_SPADS";
+    case VL53L4CX_WARNING_REF_SPAD_CHAR_RATE_TOO_HIGH: return "VL53L4CX_WARNING_REF_SPAD_CHAR_RATE_TOO_HIGH";
+    case VL53L4CX_WARNING_REF_SPAD_CHAR_RATE_TOO_LOW: return "VL53L4CX_WARNING_REF_SPAD_CHAR_RATE_TOO_LOW";
+    case VL53L4CX_WARNING_OFFSET_CAL_MISSING_SAMPLES: return "VL53L4CX_WARNING_OFFSET_CAL_MISSING_SAMPLES";
+    case VL53L4CX_WARNING_OFFSET_CAL_SIGMA_TOO_HIGH: return "VL53L4CX_WARNING_OFFSET_CAL_SIGMA_TOO_HIGH";
+    case VL53L4CX_WARNING_OFFSET_CAL_RATE_TOO_HIGH: return "VL53L4CX_WARNING_OFFSET_CAL_RATE_TOO_HI";
+    case VL53L4CX_WARNING_OFFSET_CAL_SPAD_COUNT_TOO_LOW: return "VL53L4CX_WARNING_OFFSET_CAL_SPAD_COUNT_TOO_LOW";
+    case VL53L4CX_WARNING_ZONE_CAL_MISSING_SAMPLES: return "VL53L4CX_WARNING_ZONE_CAL_MISSING_SAMPLES";
+    case VL53L4CX_WARNING_ZONE_CAL_SIGMA_TOO_HIGH: return "VL53L4CX_WARNING_ZONE_CAL_SIGMA_TOO_HIGH";
+    case VL53L4CX_WARNING_ZONE_CAL_RATE_TOO_HIGH: return "VL53L4CX_WARNING_ZONE_CAL_RATE_TOO_HIGH";
+    case VL53L4CX_WARNING_XTALK_MISSING_SAMPLES: return "VL53L4CX_WARNING_XTALK_MISSING_SAMPLES";
+    case VL53L4CX_WARNING_XTALK_NO_SAMPLES_FOR_GRADIENT: return "VL53L4CX_WARNING_XTALK_NO_SAMPLES_FOR_GRADIENT";
+    case VL53L4CX_WARNING_XTALK_SIGMA_LIMIT_FOR_GRADIENT: return "VL53L4CX_WARNING_XTALK_SIGMA_LIMIT_FOR_GRADIENT";
+    case VL53L4CX_ERROR_NOT_IMPLEMENTED: return "VL53L4CX_ERROR_NOT_IMPLEMENTED";
+    case VL53L4CX_ERROR_PLATFORM_SPECIFIC_START: return "VL53L4CX_ERROR_PLATFORM_SPECIFIC_START";
+    default: return "Undefined enum";
+  }
 }
 
 // ----- I WANT THIS CODE TO BE RUNNING FROM SD-card-API.c
@@ -703,6 +707,10 @@ bool setupOTAWebServerNotM5(const char* _ssid, const char* _password, const char
 
 // ----- I WANT THIS CODE TO BE RUNNING FROM MAX-AMP-API.c
 
+/**************************************************************
+              Print the list of the scanned music files that can be played                  
+**************************************************************/
+
 void printMusicList(void)
 {
   uint8_t i = 0;
@@ -721,43 +729,114 @@ void printMusicList(void)
   }
 }
 
+/**************************************************************
+                    The parsing and implementation of the serial command                        
+**************************************************************/
+
 void parseSerialCommand(void)
 {
-  String cmd;   
-  float value;   
-  if(Serial.available()){   
-    cmd = Serial.readStringUntil('-');   
+  String cmd;   // Save the command type read in the serial port
+  float value;   // Save the command value read in the serial port
 
-    if(cmd.equals("hp")){   
+  /**
+   * Command format: cmd-value
+   * cmd : indicate the command type
+   * value : indicate the set value corresponding to the command type, some commands can be empty
+   * For example: (1) set high-pass filter, filter the audio data below 500: hp-500
+   *      (2) close filter: closeFilter-
+   */
+  if(Serial.available()){   // Detect whether there is an available serial command
+    cmd = Serial.readStringUntil('-');   // Read the specified terminator character string, used to cut and identify the serial command.  The same comment won't repeat later.
+
+    if(cmd.equals("hp")){   // Determine if it’s the command type for setting high-pass filter
       Serial.println("Setting a High-Pass filter...\n");
-      value =Serial.parseFloat();
+      value =Serial.parseFloat();   // Parse character string and return floating point number
+
+      /**
+       * @brief Open audio filter
+       * @param type - bq_type_highpass: open high-pass filtering; bq_type_lowpass: open low-pass filtering
+       * @param fc - Threshold of filtering, range: 2-20000
+       * @note For example, setting high-pass filter mode and the threshold of 500 indicates to filter out the audio signal below 500; high-pass filter and low-pass filter can work simultaneously.
+       */
       amplifier.openFilter(bq_type_highpass, value);
-    }else if(cmd.equals("lp")){   
+
+
+    }else if(cmd.equals("lp")){   // Determine if it's the command type for setting low-pass filter
       Serial.println("Setting a Low-Pass filter...\n");
       value =Serial.parseFloat();
+
       amplifier.openFilter(bq_type_lowpass, value);
-    }else if(cmd.equals("closeFilter")){   
+
+    }else if(cmd.equals("closeFilter")){   // Determine if it's the command type for closing filter
       Serial.println("Closing filter...\n");
+
+      /**
+       * @brief Close the audio filter
+       */
       amplifier.closeFilter();
-    }else if(cmd.equals("vol")){
+
+    }else if(cmd.equals("vol")){   // Determine if it's the command type for setting volume
       Serial.println("Setting volume...\n");
       value =Serial.parseFloat();
+
+      /**
+       * @brief Set volume
+       * @param vol - Set volume, the range can be set to 0-9
+       * @note 5 for the original volume of audio data, no increase or decrease
+       */
       amplifier.setVolume(value);
-    }else if(cmd.equals("start")){   
+
+    }else if(cmd.equals("start")){   // Determine if it's the command type for starting playback
       Serial.println("starting amplifier...\n");
+
+      /**
+       * @brief SD card music playback control interface
+       * @param CMD - Playback control command: 
+       * @n SD_AMPLIFIER_PLAY: Start to play music, which can be played from the position where you paused before
+       * @n   If no music file is selected through playSDMusic(), the first one in the list will be played by default.
+       * @n   Playback error may occur if music files are not scanned from SD card in the correct format (only support English for path name of music files and WAV for their format currently)
+       * @n SD_AMPLIFIER_PAUSE: pause playback, keep the playback position of the current music file
+       * @n SD_AMPLIFIER_STOP: stop playback, end the current music playback
+       * @return None
+       */
       amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
-    }else if(cmd.equals("pause")){   
+
+    }else if(cmd.equals("pause")){   // Determine if it's the command type for pausing playback
       Serial.println("Pause amplifier...\n");
+
+      // The same as above
       amplifier.SDPlayerControl(SD_AMPLIFIER_PAUSE);
-    }else if(cmd.equals("stop")){   
+
+    }else if(cmd.equals("stop")){   // Determine if it's the command type for stopping playback
       Serial.println("Stopping amplifier...\n");
+
+      // The same as above
       amplifier.SDPlayerControl(SD_AMPLIFIER_STOP);
-    }else if(cmd.equals("musicList")){   
+
+    }else if(cmd.equals("musicList")){   // Determine if it's the command type for printing the list of the music files that can be played currently
       Serial.println("Scanning music list...\n");
+
+      /**
+       * @brief Scan the music files in WAV format in the SD card
+       * @param musicList - The music files in .wav format scanned from the SD card. Type is character string array
+       * @return None
+       * @note Only support English for music file and path name currently and try to avoid spaces, only support .wav for the audio format currently
+       */
       amplifier.scanSDMusic(musicList);
+      /**
+       * Print the list of the scanned music files that can be played
+       */
       printMusicList();
-    }else if(cmd.equals("changeMusic")){   
+
+    }else if(cmd.equals("changeMusic")){   // Determine if it's the command type for changing songs according to the music list
       cmd = musicList[Serial.parseInt()];
+
+      /**
+       * @brief Play music files in the SD card
+       * @param Filename - music file name, only support the music files in .wav format currently
+       * @note Music file name must be an absolute path like /musicDir/music.wav
+       * @return None
+       */
       if(cmd.length()){
         Serial.println("Changing Music...\n");
         amplifier.playSDMusic(cmd.c_str());
@@ -765,7 +844,7 @@ void parseSerialCommand(void)
         Serial.println("The currently selected music file is incorrect!\n");
       }
 
-    }else{   
+    }else{   // Unknown command type
       Serial.println("Help : \n \
       Currently available commands (format: cmd-value):\n \
         Start playback: e.g. start-\n \
@@ -777,9 +856,9 @@ void parseSerialCommand(void)
         Set and open low-pass filter: e.g. lp-15000\n \
         Close filter: e.g. closeFilter-\n \
         Set volume: e.g. vol-5.0\n \
-      For the detailed meaning, please refer to the code comments of this demo.\n");   
+      For the detailed meaning, please refer to the code comments of this demo.\n");   //
     }
-    while(Serial.read() >= 0);   
+    while(Serial.read() >= 0);   // Clear the remaining data in the serial port
   }
 }
 
