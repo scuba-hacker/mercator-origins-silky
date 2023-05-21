@@ -22,9 +22,6 @@
 
 #include <DFRobot_MAX98357A.h>
 
-#include <esp_now.h>
-
-const uint8_t ESPNOW_CHANNEL=1;
 
 #include "mercator_secrets.c"
 
@@ -42,12 +39,14 @@ hp_BH1750 BH1750;
 
 VL53L4CX sensor_vl53l4cx_sat(&DEV_I2C, XSHUT_PIN);
 
-#define ENABLE_ELEGANT_OTA_AT_COMPILE_TIME
+//#define ENABLE_ELEGANT_OTA_AT_COMPILE_TIME
+//#define ENABLE_ESPNOW_AT_COMPILE_TIME
 
-const bool enableOTAServer = true;          // over the air updates
-const bool enableESPNow = !enableOTAServer; // cannot have OTA server on regular wifi and espnow concurrently running
-const bool enableLightSensor = true;
-const bool enableTimeOfFlightSensor = true;
+const bool enableOTAServer = false;          // over the air updates
+
+const bool enableESPNow = false;//!enableOTAServer; // cannot have OTA server on regular wifi and espnow concurrently running
+const bool enableLightSensor = false;
+const bool enableTimeOfFlightSensor = false;
 
 bool lightSensorAvailable = false;
 bool timeOfFlightSensorAvailable = false;
@@ -62,11 +61,17 @@ bool timeOfFlightSensorAvailable = false;
   AsyncWebServer asyncWebServer(80);
 #endif
 
+#ifdef ENABLE_ESPNOW_AT_COMPILE_TIME
+  #include <esp_now.h>
+  const uint8_t ESPNOW_CHANNEL=1;
+#endif
+
 const int beetleLed = 10;
 const uint8_t I2S_AMP_BCLK_PIN = GPIO_NUM_0;
 const uint8_t I2S_AMP_LRCLK_PIN = GPIO_NUM_1;
 const uint8_t I2S_AMP_DIN_PIN = GPIO_NUM_7;
 const uint8_t SD_CHIP_SELECT_PIN = GPIO_NUM_2;
+
 uint8_t cardType = 0;
 
 String musicList[100];   // SD card music playlist 
@@ -91,11 +96,20 @@ void setup()
     Serial.println("Warming up...");
   }
   Serial.println("\nHere we go...");
-  
-  if(!SD.begin(SD_CHIP_SELECT_PIN))
+
+  while(true)
   {
-      Serial.println("Card Mount Failed");
-      return;
+    if(!SD.begin(SD_CHIP_SELECT_PIN))
+    {
+        Serial.println("Card Mount Failed");
+        delay(2000);
+//        return;
+    }
+    else
+    {
+      Serial.println("Card Mount Succeeded");
+      break;
+    }
   }
   
   cardType = SD.cardType();
@@ -156,6 +170,7 @@ void setup()
     }
   }
 
+#ifdef ENABLE_OTA_AT_COMPILE_TIME
   if (enableOTAServer)
   {
     if (!setupOTAWebServerNotM5(ssid_1, password_1, label_1, timeout_1))
@@ -166,11 +181,14 @@ void setup()
       }
     }
   }
+#endif
 
+#ifdef ENABLE_ESPNOW_AT_COMPILE_TIME
   if (enableESPNow)
   {
     configAndStartUpESPNow();    
   }
+#endif
 
   testFileIO();
 
@@ -180,23 +198,31 @@ void setup()
     delay(3000);
   }
   
+  Serial.println("Initialize I2S succeeded");    
+  
   while (!amplifier.initSDCard(SD_CHIP_SELECT_PIN))
   {
     Serial.println("Initialize SD card failed !");
     delay(3000);
   }
-  
-  Serial.println("Initialize succeed!");
+
+  Serial.println("Initialize SD Card succeeded");
   
   amplifier.scanSDMusic(musicList);
   
+  Serial.println("Scan SD Card for music succeeded");
+
   printMusicList();
   
+  Serial.println("Print SD Card contents succeeded");
+
   amplifier.setVolume(5);
   amplifier.closeFilter();
   amplifier.openFilter(bq_type_highpass, 500);
   amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
-  
+
+  Serial.println("SD Card play music file function completed");
+
   delay(5000);
   
   if(musicList[1].length())
@@ -263,6 +289,7 @@ char* getTimeOfFlightSensorErrorString(VL53L4CX_Error e)
 
 void loop() 
 {
+  /*
   if (lightSensorAvailable)
   {
     float lux=0.0;
@@ -278,6 +305,7 @@ void loop()
     // deal with it later.
     takeTimeOfFlightMeasurementAndWriteToSerial();
   }
+  */
 }
 
 void getLux(float &l)
@@ -544,6 +572,8 @@ void testFlashFileIO(fs::FS &fs, const char * path){
 
 void toggleOTAActive()
 {
+  #ifdef ENABLE_ELEGANT_OTA_AT_COMPILE_TIME
+
    if (otaActiveListening)
    {
      asyncWebServer.end();
@@ -563,10 +593,13 @@ void toggleOTAActive()
        Serial.println("Error: Enable Wifi First");
      }
    }  
+
+   #endif
 }
 
 void toggleWiFiActive()
 {
+  #ifdef ENABLE_ELEGANT_OTA_AT_COMPILE_TIME
    if (WiFi.status() == WL_CONNECTED)
    {
       if (otaActiveListening)
@@ -592,11 +625,14 @@ void toggleWiFiActive()
       }
     }
    }
+  #endif
 }
 
 
 bool connectWiFiNoOTANotM5(const char* _ssid, const char* _password, const char* label, uint32_t timeout)
 {
+#ifdef ENABLE_ELEGANT_OTA_AT_COMPILE_TIME
+
   bool connected = false;
   WiFi.mode(WIFI_STA);
   WiFi.begin(_ssid, _password);
@@ -620,13 +656,17 @@ bool connectWiFiNoOTANotM5(const char* _ssid, const char* _password, const char*
   }
 
   delay(1000);
-  
   return connected;
+#else
+  return false;
+#endif
 }
+
 
 bool setupOTAWebServerNotM5(const char* _ssid, const char* _password, const char* label, uint32_t timeout)
 {
 #ifdef ENABLE_ELEGANT_OTA_AT_COMPILE_TIME
+
   bool connected = false;
   WiFi.mode(WIFI_STA);
   WiFi.begin(_ssid, _password);
@@ -746,6 +786,7 @@ void parseSerialCommand(void)
 
 // Integrate ESPNow slave code
 
+#ifdef ENABLE_ESPNOW_AT_COMPILE_TIME
 
 char ESPNowbuffer[100];
 
@@ -800,3 +841,5 @@ void configAndStartUpESPNow()
   // get recv packer info.
   esp_now_register_recv_cb(OnESPNowDataRecv);
 }
+
+#endif
