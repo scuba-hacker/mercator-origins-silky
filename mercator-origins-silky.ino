@@ -22,7 +22,6 @@
 
 #include <DFRobot_MAX98357A.h>
 
-
 #include "mercator_secrets.c"
 
 // I2C Light Sensor
@@ -103,7 +102,6 @@ void setup()
     {
         Serial.println("Card Mount Failed");
         delay(2000);
-//        return;
     }
     else
     {
@@ -120,7 +118,6 @@ void setup()
       return;
   }
 
-  //
   DEV_I2C.begin();
 
   if (enableLightSensor)
@@ -190,38 +187,39 @@ void setup()
   }
 #endif
 
+//  while ( !amplifier.initI2S(I2S_AMP_BCLK_PIN, I2S_AMP_LRCLK_PIN, I2S_AMP_DIN_PIN) )
+  while ( !amplifier.begin(I2S_AMP_BCLK_PIN, I2S_AMP_LRCLK_PIN, I2S_AMP_DIN_PIN) )
+  {
+    Serial.println("Begin I2S Amplifier failed!");
+    delay(3000);
+  }
+
+  Serial.println("Begin I2S Amplifier succeeded");    
+  
   testFileIO();
 
-  while ( !amplifier.initI2S(I2S_AMP_BCLK_PIN, I2S_AMP_LRCLK_PIN, I2S_AMP_DIN_PIN) )
-  {
-    Serial.println("Initialize I2S failed !");
-    delay(3000);
-  }
-  
-  Serial.println("Initialize I2S succeeded");    
-  
   while (!amplifier.initSDCard(SD_CHIP_SELECT_PIN))
   {
-    Serial.println("Initialize SD card failed !");
+    Serial.println("Initialize SD card for I2S Amplifier failed !");
     delay(3000);
   }
 
-  Serial.println("Initialize SD Card succeeded");
+  Serial.println("Initialize SD Card by I2S Amplifier succeeded");
   
   amplifier.scanSDMusic(musicList);
   
-  Serial.println("Scan SD Card for music succeeded");
+  Serial.println("Scan SD Card by I2S Amplifier for music list succeeded");
 
   printMusicList();
   
-  Serial.println("Print SD Card contents succeeded");
+  Serial.println("Print SD Card by I2S Amplifier music list contents succeeded");
 
   amplifier.setVolume(5);
   amplifier.closeFilter();
   amplifier.openFilter(bq_type_highpass, 500);
   amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
 
-  Serial.println("SD Card play music file function completed");
+  Serial.println("I2S Amplifier play music file from SD Card function completed");
 
   delay(5000);
   
