@@ -37,7 +37,10 @@ hp_BH1750 BH1750;
 // see https://learn.adafruit.com/adafruit-vl53l4cx-time-of-flight-distance-sensor
 #include <vl53l4cx_class.h>
 #define DEV_I2C Wire
-VL53L4CX sensor_vl53l4cx_sat(&DEV_I2C, A1);
+#define XSHUT_PIN A1
+#define VL53L4CX_DEFAULT_DEVICE_ADDRESS 0x12
+
+VL53L4CX sensor_vl53l4cx_sat(&DEV_I2C, XSHUT_PIN);
 
 #define ENABLE_ELEGANT_OTA_AT_COMPILE_TIME
 
@@ -125,7 +128,7 @@ void setup()
     sensor_vl53l4cx_sat.VL53L4CX_Off();
 
     //Initialize VL53L4CX
-    VL53L4CX_Error initError = sensor_vl53l4cx_sat.InitSensor(0x12);
+    VL53L4CX_Error initError = sensor_vl53l4cx_sat.InitSensor(VL53L4CX_DEFAULT_DEVICE_ADDRESS);
 
     if (initError == VL53L4CX_ERROR_NONE)
     {
