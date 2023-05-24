@@ -41,11 +41,11 @@ VL53L4CX sensor_vl53l4cx_sat(&DEV_I2C, XSHUT_PIN);
 //#define ENABLE_ELEGANT_OTA_AT_COMPILE_TIME
 //#define ENABLE_ESPNOW_AT_COMPILE_TIME
 
-const bool enableOTAServer = false;          // over the air updates
+const bool enableOTAServer = true;          // over the air updates
 
-const bool enableESPNow = false;//!enableOTAServer; // cannot have OTA server on regular wifi and espnow concurrently running
-const bool enableLightSensor = false;
-const bool enableTimeOfFlightSensor = false;
+const bool enableESPNow = !enableOTAServer; // cannot have OTA server on regular wifi and espnow concurrently running
+const bool enableLightSensor = true;
+const bool enableTimeOfFlightSensor = true;
 
 bool lightSensorAvailable = false;
 bool timeOfFlightSensorAvailable = false;
@@ -196,7 +196,7 @@ void setup()
 
   Serial.println("Init I2S Amplifier succeeded");    
   
-  testFileIO();
+//  testFileIO();
 
   while (!amplifier.initSDCard(SD_CHIP_SELECT_PIN))
   {
@@ -216,7 +216,7 @@ void setup()
 
   amplifier.setVolume(5);
   amplifier.closeFilter();
-  amplifier.openFilter(bq_type_highpass, 500);
+//  amplifier.openFilter(bq_type_highpass, 500);
   amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
 
   Serial.println("I2S Amplifier play music file from SD Card function completed");
@@ -235,7 +235,7 @@ void setup()
 
 void loop() 
 {
-/*
+
   if (lightSensorAvailable)
   {
     float lux=0.0;
@@ -251,7 +251,6 @@ void loop()
     // deal with it later.
     takeTimeOfFlightMeasurementAndWriteToSerial();
   }
-  */
 
   parseSerialCommand();
   delay(500);
