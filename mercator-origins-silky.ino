@@ -68,11 +68,11 @@ bool timeOfFlightSensorAvailable = false;
 const int beetleLed = 10;
 const uint8_t I2S_AMP_BCLK_PIN = GPIO_NUM_0;
 const uint8_t I2S_AMP_LRCLK_PIN = GPIO_NUM_1;
-const uint8_t I2S_AMP_DIN_PIN = GPIO_NUM_7;
+const uint8_t I2S_AMP_DIN_PIN = GPIO_NUM_2;
 
-const uint8_t SD_CHIP_SELECT_PIN = GPIO_NUM_2;
+const uint8_t SD_CS_PIN = GPIO_NUM_7;
 
-uint8_t cardType = 0;
+uint8_t cardType = CARD_SD; // was 0
 
 String musicList[100];   // SD card music playlist 
 
@@ -84,7 +84,7 @@ void setup()
 
   // LED flash - we're alive!
   Serial.begin(115200);
-  int warmUp=20;
+  int warmUp=10;
   
   while (warmUp--)
   {
@@ -96,20 +96,21 @@ void setup()
     Serial.println("Warming up...");
   }
   Serial.println("\nHere we go...");
-
+/*
   while(true)
   {
-    if(!SD.begin(SD_CHIP_SELECT_PIN))
+    if(!SD.begin(SD_CS_PIN))
     {
-        Serial.println("Card Mount Failed");
+        Serial.println("SD.begin: Card Mount Failed");
         delay(2000);
     }
     else
     {
-      Serial.println("Card Mount Succeeded");
+      Serial.println("SD.begin: Card Mount Succeeded");
       break;
     }
   }
+
   
   cardType = SD.cardType();
 
@@ -118,8 +119,10 @@ void setup()
       Serial.println("No SD card attached");
       return;
   }
-
+*/
   DEV_I2C.begin();
+
+  delay(2000);
 
   if (enableLightSensor)
   {
@@ -128,6 +131,10 @@ void setup()
     if (!lightSensorAvailable) 
     {
       Serial.println("No BH1750 sensor found!");
+    }
+    else
+    {
+      Serial.println("BH1750 sensor initialised ok");
     }
   }
 
@@ -198,7 +205,7 @@ void setup()
   
 //  testFileIO();
 
-  while (!amplifier.initSDCard(SD_CHIP_SELECT_PIN))
+  while (!amplifier.initSDCard(SD_CS_PIN))
   {
     Serial.println("Initialize SD card for I2S Amplifier failed !");
     delay(3000);
