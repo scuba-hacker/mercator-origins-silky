@@ -977,6 +977,14 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
         Serial.printf("Command C... Skip to next track %d %s\n",currentTrack,amplifier.getTrackFilename(currentTrack));
       break;
     }
+    
+    case 'D': // stop playback
+    {
+      amplifier.SDPlayerControl(SD_AMPLIFIER_STOP);
+      if (writeLogToSerial)
+        Serial.printf("Command D... Stop playback\n");
+      break;
+    }
     default:
       break;
   }
