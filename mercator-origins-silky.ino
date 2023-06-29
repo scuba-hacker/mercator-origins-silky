@@ -24,6 +24,8 @@
 
 #include "mercator_secrets.c"
 
+bool writeLogToSerial = false;
+
 // I2C Light Sensor
 // see https://github.com/Starmbi/hp_BH1750
 #include <hp_BH1750.h>
@@ -39,13 +41,13 @@ hp_BH1750 BH1750;
 VL53L4CX sensor_vl53l4cx_sat(&DEV_I2C, XSHUT_PIN);
 
 //#define ENABLE_ELEGANT_OTA_AT_COMPILE_TIME
-//#define ENABLE_ESPNOW_AT_COMPILE_TIME
+#define ENABLE_ESPNOW_AT_COMPILE_TIME
 
-const bool enableOTAServer = true;          // over the air updates
+const bool enableOTAServer = false;          // over the air updates
 
 const bool enableESPNow = !enableOTAServer; // cannot have OTA server on regular wifi and espnow concurrently running
-const bool enableLightSensor = true;
-const bool enableTimeOfFlightSensor = true;
+const bool enableLightSensor = false;
+const bool enableTimeOfFlightSensor = false;
 
 bool lightSensorAvailable = false;
 bool timeOfFlightSensorAvailable = false;
@@ -62,6 +64,7 @@ bool timeOfFlightSensorAvailable = false;
 
 #ifdef ENABLE_ESPNOW_AT_COMPILE_TIME
   #include <esp_now.h>
+  #include <WiFi.h>
   const uint8_t ESPNOW_CHANNEL=1;
 #endif
 
@@ -74,7 +77,19 @@ const uint8_t SD_CS_PIN = GPIO_NUM_7;
 
 uint8_t cardType = CARD_SD; // was 0
 
-String musicList[100];   // SD card music playlist 
+const float defaultVolume = 6.0;
+float volume = defaultVolume;
+
+const uint8_t numberOfTracks = 100;
+const uint8_t defaultTrack  = 0;
+uint8_t currentTrack  = defaultTrack;
+const char* currentTrackFilename = NULL;
+
+uint32_t lastAudioGuidancePlayedAt = 0;
+const uint32_t audioGuidanceMinimumGap = 50;
+
+
+String musicList[numberOfTracks];   // SD card music playlist
 
 DFRobot_MAX98357A amplifier;   
 
@@ -92,37 +107,17 @@ void setup()
     delay(250);
     digitalWrite(beetleLed,LOW);
     delay(250);
-   
-    Serial.println("Warming up...");
-  }
-  Serial.println("\nHere we go...");
-/*
-  while(true)
-  {
-    if(!SD.begin(SD_CS_PIN))
-    {
-        Serial.println("SD.begin: Card Mount Failed");
-        delay(2000);
-    }
-    else
-    {
-      Serial.println("SD.begin: Card Mount Succeeded");
-      break;
-    }
-  }
 
+    if (writeLogToSerial)
+      Serial.println("Warming up...");
+  }
   
-  cardType = SD.cardType();
+  if (writeLogToSerial)
+     Serial.println("\nHere we go...");
 
-  if(cardType == CARD_NONE)
-  {
-      Serial.println("No SD card attached");
-      return;
-  }
-*/
   DEV_I2C.begin();
 
-  delay(2000);
+  delay(500);
 
   if (enableLightSensor)
   {
@@ -130,11 +125,13 @@ void setup()
                                               // result (bool) wil be be "false" if no sensor found
     if (!lightSensorAvailable) 
     {
-      Serial.println("No BH1750 sensor found!");
+       if (writeLogToSerial)
+        Serial.println("No BH1750 sensor found!");
     }
     else
     {
-      Serial.println("BH1750 sensor initialised ok");
+      if (writeLogToSerial)
+       Serial.println("BH1750 sensor initialised ok");
     }
   }
 
@@ -151,26 +148,30 @@ void setup()
 
     if (initError == VL53L4CX_ERROR_NONE)
     {
-      Serial.println("Adafruit VL53L4CX Time Of Flight Sensor Initialised ok");
+      if (writeLogToSerial)
+        Serial.println("Adafruit VL53L4CX Time Of Flight Sensor Initialised ok");
 
       VL53L4CX_Error measureError = sensor_vl53l4cx_sat.VL53L4CX_StartMeasurement();  
 
       if (measureError == VL53L4CX_ERROR_NONE)
       {
-        Serial.println("Adafruit VL53L4CX Time Of Flight Sensor Started Measurement ok");
+        if (writeLogToSerial)
+           Serial.println("Adafruit VL53L4CX Time Of Flight Sensor Started Measurement ok");
         timeOfFlightSensorAvailable = true;
       }
       else
       {
         const char* TOFErrorBuffer = getTimeOfFlightSensorErrorString(measureError);
-        Serial.printf("\nError: Adafruit VL53L4CX Time Of Flight Sensor startup measurement error: %i %s\n",measureError, TOFErrorBuffer);
+        if (writeLogToSerial)
+           Serial.printf("\nError: Adafruit VL53L4CX Time Of Flight Sensor startup measurement error: %i %s\n",measureError, TOFErrorBuffer);
         timeOfFlightSensorAvailable = false;
       }
     }
     else
     {
       const char* TOFErrorBuffer = getTimeOfFlightSensorErrorString(initError);
-      Serial.printf("Error: Adafruit VL53L4CX Time Of Flight Sensor initialisation error: %i %s\n",initError, TOFErrorBuffer); 
+      if (writeLogToSerial)
+         Serial.printf("Error: Adafruit VL53L4CX Time Of Flight Sensor initialisation error: %i %s\n",initError, TOFErrorBuffer); 
       timeOfFlightSensorAvailable = false;
     }
   }
@@ -197,57 +198,51 @@ void setup()
 
   while ( !amplifier.initI2S(I2S_AMP_BCLK_PIN, I2S_AMP_LRCLK_PIN, I2S_AMP_DIN_PIN) )
   {
-    Serial.println("Init I2S Amplifier failed!");
+   if (writeLogToSerial)
+     Serial.println("Init I2S Amplifier failed!");
     delay(3000);
   }
 
-  Serial.println("Init I2S Amplifier succeeded");    
+  if (writeLogToSerial)
+    Serial.println("Init I2S Amplifier succeeded");    
   
-//  testFileIO();
+//  testFileIO();   // uncomment if issue with flash/SD
 
   while (!amplifier.initSDCard(SD_CS_PIN))
   {
-    Serial.println("Initialize SD card for I2S Amplifier failed !");
+    if (writeLogToSerial)
+      Serial.println("Initialize SD card for I2S Amplifier failed !");
     delay(3000);
   }
 
-  Serial.println("Initialize SD Card by I2S Amplifier succeeded");
+  if (writeLogToSerial)
+     Serial.println("Initialize SD Card by I2S Amplifier succeeded");
   
   amplifier.scanSDMusic(musicList);
   
-  Serial.println("Scan SD Card by I2S Amplifier for music list succeeded");
-
-  printMusicList();
+  if (writeLogToSerial)
+  {
+    Serial.println("Scan SD Card by I2S Amplifier for music list succeeded");
+    printMusicList();
+    Serial.println("Print SD Card by I2S Amplifier music list contents succeeded");
+  }
   
-  Serial.println("Print SD Card by I2S Amplifier music list contents succeeded");
-
-  amplifier.setVolume(5);
+  amplifier.setVolume(defaultVolume);
   amplifier.closeFilter();
 //  amplifier.openFilter(bq_type_highpass, 500);
-  amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
+//  amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
 
-  Serial.println("I2S Amplifier play music file from SD Card function completed");
-
-  if(musicList[1].length())
-  {
-    Serial.println("Changing Music...\n");
-    amplifier.playSDMusic(musicList[1].c_str());
-  }
-  else
-  {
-    Serial.println("The currently selected music file is incorrect!\n");
-  }
 }
 
 
 void loop() 
 {
-
   if (lightSensorAvailable)
   {
     float lux=0.0;
     getLux(lux);
-    Serial.printf("Lux Sensor: %f, ",lux);
+    if (writeLogToSerial)
+     Serial.printf("Lux Sensor: %f, ",lux);
   }
 
   if (timeOfFlightSensorAvailable)
@@ -259,11 +254,11 @@ void loop()
     takeTimeOfFlightMeasurementAndWriteToSerial();
   }
 
-  parseSerialCommand();
-  delay(500);
+//  parseSerialCommand();
+//  delay(500);
+
+
 }
-
-
 
 
 void getLux(float &l)
@@ -297,30 +292,33 @@ void takeTimeOfFlightMeasurementAndWriteToSerial()
     
     no_of_object_found = pMultiRangingData->NumberOfObjectsFound;
     
-    snprintf(report, sizeof(report), "VL53L4CX Satellite: Count=%d, #Objs=%1d ", pMultiRangingData->StreamCount, no_of_object_found);
-    Serial.print(report);
-    
-    for (j = 0; j < no_of_object_found; j++) 
+    if (writeLogToSerial)
     {
-      if (j != 0) 
+      snprintf(report, sizeof(report), "VL53L4CX Satellite: Count=%d, #Objs=%1d ", pMultiRangingData->StreamCount, no_of_object_found);
+      Serial.print(report);
+      
+      for (j = 0; j < no_of_object_found; j++) 
       {
-        Serial.print("\r\n                               ");
+        if (j != 0) 
+        {
+          Serial.print("\r\n                               ");
+        }
+        
+        Serial.print("status=");
+        Serial.print(pMultiRangingData->RangeData[j].RangeStatus);
+        Serial.print(", D=");
+        Serial.print(pMultiRangingData->RangeData[j].RangeMilliMeter);
+        Serial.print("mm");
+        Serial.print(", Signal=");
+        Serial.print((float)pMultiRangingData->RangeData[j].SignalRateRtnMegaCps / 65536.0);
+        Serial.print(" Mcps, Ambient=");
+        Serial.print((float)pMultiRangingData->RangeData[j].AmbientRateRtnMegaCps / 65536.0);
+        Serial.print(" Mcps");
       }
       
-      Serial.print("status=");
-      Serial.print(pMultiRangingData->RangeData[j].RangeStatus);
-      Serial.print(", D=");
-      Serial.print(pMultiRangingData->RangeData[j].RangeMilliMeter);
-      Serial.print("mm");
-      Serial.print(", Signal=");
-      Serial.print((float)pMultiRangingData->RangeData[j].SignalRateRtnMegaCps / 65536.0);
-      Serial.print(" Mcps, Ambient=");
-      Serial.print((float)pMultiRangingData->RangeData[j].AmbientRateRtnMegaCps / 65536.0);
-      Serial.print(" Mcps");
+      Serial.println("");
     }
-    
-    Serial.println("");
-    
+        
     if (status == 0) 
     {
       status = sensor_vl53l4cx_sat.VL53L4CX_ClearInterruptAndStartMeasurement();
@@ -875,21 +873,134 @@ void parseSerialCommand(void)
 char ESPNowbuffer[100];
 
 // callback when data is recv from Master
-void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
-  char macStr[18];
-  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-  Serial.printf("Last Packet Recv from: \n%s",macStr);
-  Serial.printf("Last Packet Recv Data: '%c'\n",*data);
+void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) 
+{
+  if (writeLogToSerial)
+  {
+    char macStr[18];
+    snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+             mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+    Serial.printf("Last Packet Recv from: \n%s",macStr);
+    Serial.printf("Last Packet Recv Data: '%c'\n",*data);
+  }
+  
+  const char* curTrackName = amplifier.getTrackFilename(currentTrack);
+
+/*  
+17:44:49.355 -> Music List: 
+17:44:49.355 ->   0  -  /bass.wav
+17:44:49.355 ->   1  -  /HarpLow.wav
+17:44:49.355 ->   2  -  /HarpRasp.wav
+17:44:49.355 ->   3  -  /HiPitch.wav
+17:44:49.355 ->   4  -  /KeyClick.wav
+17:44:49.355 ->   5  -  /MedBuzz.wav
+17:44:49.355 ->   6  -  /pop.wav
+*/
+
+// set one:   left (HarpRasp==2), right (HarpLow.wav==1), ahead (pop==6), back (KeyClick==4)
+
+  switch (*data)
+  {
+    case '0':
+    case '1':   
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    {      
+      if (millis() > lastAudioGuidancePlayedAt + audioGuidanceMinimumGap)
+      {
+        if (writeLogToSerial)
+           Serial.printf("1.Command %c... Play track\n",*data);
+
+        lastAudioGuidancePlayedAt = millis();
+
+        currentTrack=(*data) - '0';
+        currentTrackFilename = amplifier.getTrackFilename(currentTrack);
+
+        if (writeLogToSerial)
+          Serial.printf("Command %c... Play track %d %s\n",*data,currentTrack,currentTrackFilename);
+
+        amplifier.playSDMusic(currentTrackFilename);
+      }
+      else
+      {
+        if (writeLogToSerial)
+          Serial.printf("Command %c... wait for minimum gap\n",*data);
+      }
+      break;
+    }
+    case 'A': // toggle playback
+    {
+      if (amplifier.getAmplifierState() == SD_AMPLIFIER_PLAY)
+      {
+        if (writeLogToSerial)
+          Serial.printf("Command A... Pause Track %d %s\n",currentTrack,curTrackName);
+        amplifier.SDPlayerControl(SD_AMPLIFIER_PAUSE);
+      }
+      else if (amplifier.getAmplifierState() == SD_AMPLIFIER_STOP)
+      {
+        if (writeLogToSerial)
+          Serial.printf("Command A... Unstop/Play Track %d %s\n",currentTrack,curTrackName);
+        amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
+      }
+      else if (amplifier.getAmplifierState() == SD_AMPLIFIER_PAUSE)
+      {
+        if (writeLogToSerial)
+          Serial.printf("Command A... Unpause Track %d %s\n",currentTrack,curTrackName);
+        amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
+      }
+      else
+      {
+        if (writeLogToSerial)
+          Serial.printf("Command A... Pause/? Track %d %s\n",currentTrack,curTrackName);
+        amplifier.SDPlayerControl(SD_AMPLIFIER_PAUSE);
+      }
+      
+      break;
+    }
+          
+    case 'B': // cycle volume up
+    {
+      volume = (volume >= 9 ? 1 : volume+1);
+      amplifier.setVolume(volume);
+      if (writeLogToSerial)
+        Serial.printf("Command B... Set Volume: %f\n",volume);
+      break;
+    }
+    
+    case 'C': // skip to next track
+    {
+      amplifier.playSDMusic(musicList[getNextTrack()].c_str());
+      if (writeLogToSerial)
+        Serial.printf("Command C... Skip to next track %d %s\n",currentTrack,amplifier.getTrackFilename(currentTrack));
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+uint8_t getNextTrack()
+{
+  if (++currentTrack >= amplifier.getTrackCount())
+    currentTrack = 0;
+
+  return currentTrack;
 }
 
 void InitESPNow() {
   WiFi.disconnect();
-  if (esp_now_init() == ESP_OK) {
-    Serial.println("ESPNow Init Success");
+  if (esp_now_init() == ESP_OK) 
+  {
+    if (writeLogToSerial)
+      Serial.println("ESPNow Init Success");
   }
-  else {
-    Serial.println("ESPNow Init Failed");
+  else 
+  {
+    if (writeLogToSerial)
+      Serial.println("ESPNow Init Failed");
     // Retry InitESPNow, add a counte and then restart?
     // InitESPNow();
     // or Simply Restart
@@ -897,30 +1008,46 @@ void InitESPNow() {
   }
 }
 
-void configESPNowDeviceAP() {
+void configESPNowDeviceAP() 
+{
   String Prefix = "Slave:";
   String Mac = WiFi.macAddress();
   String SSID = Prefix + Mac;
   String Password = "123456789";
   bool result = WiFi.softAP(SSID.c_str(), Password.c_str(), ESPNOW_CHANNEL, 0);
-  if (!result) {
-    Serial.println("AP Config failed.");
-  } else {
-    Serial.println("AP Config Success. Broadcasting with AP: " + String(SSID));
-  }
+
+  if (writeLogToSerial)
+  {
+    if (!result) 
+    {
+      Serial.println("AP Config failed.");
+    } 
+    else 
+    {
+      Serial.printf("AP Config Success. Broadcasting with AP: %s\n",String(SSID).c_str());
+      Serial.printf("WiFi Channel: %d\n",WiFi.channel());
+    }
+  }  
 }
 
 void configAndStartUpESPNow()
 {
-  Serial.println("ESPNow/Basic/Slave Example");
+  if (writeLogToSerial)
+    Serial.println("ESPNow/Basic/Slave Example");
+  
   //Set device in AP mode to begin with
   WiFi.mode(WIFI_AP);
+  
   // configure device AP mode
   configESPNowDeviceAP();
+  
   // This is the mac address of the Slave in AP Mode
-  Serial.print("AP MAC: "); Serial.println(WiFi.softAPmacAddress());
+  if (writeLogToSerial)
+    Serial.print("AP MAC: "); Serial.println(WiFi.softAPmacAddress());
+  
   // Init ESPNow with a fallback logic
   InitESPNow();
+  
   // Once ESPNow is successfully Init, we will register for recv CB to
   // get recv packer info.
   esp_now_register_recv_cb(OnESPNowDataRecv);
