@@ -24,7 +24,7 @@
 
 #include "mercator_secrets.c"
 
-bool writeLogToSerial = false;
+bool writeLogToSerial = true;
 
 // I2C Light Sensor
 // see https://github.com/Starmbi/hp_BH1750
@@ -77,7 +77,7 @@ const uint8_t SD_CS_PIN = GPIO_NUM_7;
 
 uint8_t cardType = CARD_SD; // was 0
 
-const float defaultVolume = 6.0;
+const float defaultVolume = 9.0;
 float volume = defaultVolume;
 
 const uint8_t numberOfTracks = 100;
@@ -880,8 +880,9 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
     char macStr[18];
     snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
              mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-    Serial.printf("Last Packet Recv from: \n%s",macStr);
-    Serial.printf("Last Packet Recv Data: '%c'\n",*data);
+    Serial.printf("Last Packet Recv from: %s\n",macStr);
+    Serial.printf("Last Packet Recv 1st Byte: '%c'\n",*data);
+    Serial.printf("Last Packet Recv Length: %d\n",data_len);
   }
   
   const char* curTrackName = amplifier.getTrackFilename(currentTrack);
@@ -966,7 +967,7 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
       volume = (volume >= 9 ? 1 : volume+1);
       amplifier.setVolume(volume);
       if (writeLogToSerial)
-        Serial.printf("Command B... Set Volume: %f\n",volume);
+        Serial.printf("Command B... Cycle Volume Up: %f\n",volume);
       break;
     }
     
@@ -984,6 +985,22 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
       if (writeLogToSerial)
         Serial.printf("Command D... Stop playback\n");
       break;
+    }
+    
+    case 'E': // set volume
+    {
+      if (data_len == 2)
+      {
+        // volume is in the second byte
+        volume = *(data+1);
+        amplifier.setVolume(volume);
+        if (writeLogToSerial)
+          Serial.printf("Command E... Set Volume: %f\n",volume);
+      }
+      else
+      {
+        // do nothing
+      }
     }
     default:
       break;
