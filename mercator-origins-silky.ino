@@ -866,8 +866,6 @@ void parseSerialCommand(void)
   }
 }
 
-// Integrate ESPNow slave code
-
 #ifdef ENABLE_ESPNOW_AT_COMPILE_TIME
 
 char ESPNowbuffer[100];
@@ -1035,7 +1033,7 @@ void InitESPNow() {
 
 void configESPNowDeviceAP() 
 {
-  String Prefix = "Slave:";
+  String Prefix = "AudioPod:";
   String Mac = WiFi.macAddress();
   String SSID = Prefix + Mac;
   String Password = "123456789";
@@ -1058,7 +1056,7 @@ void configESPNowDeviceAP()
 void configAndStartUpESPNow()
 {
   if (writeLogToSerial)
-    Serial.println("ESPNow/Basic/Slave Example");
+    Serial.println("ESPNow/Basic Example");
   
   //Set device in AP mode to begin with
   WiFi.mode(WIFI_AP);
@@ -1066,7 +1064,7 @@ void configAndStartUpESPNow()
   // configure device AP mode
   configESPNowDeviceAP();
   
-  // This is the mac address of the Slave in AP Mode
+  // This is the mac address of this peer in AP Mode
   if (writeLogToSerial)
     Serial.print("AP MAC: "); Serial.println(WiFi.softAPmacAddress());
   
