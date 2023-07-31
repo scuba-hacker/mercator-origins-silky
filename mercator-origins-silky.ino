@@ -78,6 +78,8 @@ const uint8_t SD_CS_PIN = GPIO_NUM_7;
 uint8_t cardType = CARD_SD; // was 0
 
 const float defaultVolume = 9.0;
+const float maxVolume = 9.0;
+const float minVolume = 7.0;
 float volume = defaultVolume;
 
 const uint8_t numberOfTracks = 100;
@@ -962,7 +964,7 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
           
     case 'B': // cycle volume up
     {
-      volume = (volume >= 9 ? 1 : volume+1);
+      volume = (volume >= maxVolume ? minVolume : volume+1);
       amplifier.setVolume(volume);
       if (writeLogToSerial)
         Serial.printf("Command B... Cycle Volume Up: %f\n",volume);
