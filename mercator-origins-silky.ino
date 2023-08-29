@@ -20,6 +20,8 @@
 
 //#include "SD-card-API.h"
 
+#define ENABLE_DBG
+
 #include <DFRobot_MAX98357A.h>
 
 #include "mercator_secrets.c"
@@ -77,9 +79,9 @@ const uint8_t SD_CS_PIN = GPIO_NUM_7;
 
 uint8_t cardType = CARD_SD; // was 0
 
-const float defaultVolume = 9.0;
-const float maxVolume = 9.0;
-const float minVolume = 7.0;
+const float defaultVolume = 5.0;
+const float maxVolume = 5.0;
+const float minVolume = 3.0;
 float volume = defaultVolume;
 
 const uint8_t numberOfTracks = 100;
@@ -117,7 +119,10 @@ void setup()
   if (writeLogToSerial)
      Serial.println("\nHere we go...");
 
-  DEV_I2C.begin();
+  if (enableLightSensor || enableTimeOfFlightSensor) 
+  {
+    DEV_I2C.begin();
+  }
 
   delay(500);
 
@@ -909,7 +914,17 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
     case '4':
     case '5':
     case '6':
-    {      
+    case '7':
+    case '8':
+    case '9':
+    case ':':
+    case ';':
+    case '<':
+    case '=':
+    case '>':
+    case '?':
+    case '@':
+    {           // allow up to 17 randomly chosen sounds
       if (millis() > lastAudioGuidancePlayedAt + audioGuidanceMinimumGap)
       {
         if (writeLogToSerial)
