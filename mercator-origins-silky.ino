@@ -21,6 +21,7 @@
 //#include "SD-card-API.h"
 
 #define ENABLE_DBG
+// #define ENABLE_PARSE_SERIAL
 
 #include <DFRobot_MAX98357A.h>
 
@@ -71,9 +72,9 @@ bool timeOfFlightSensorAvailable = false;
 #endif
 
 const int beetleLed = 10;
-const uint8_t I2S_AMP_BCLK_PIN = GPIO_NUM_0;
-const uint8_t I2S_AMP_LRCLK_PIN = GPIO_NUM_1;
-const uint8_t I2S_AMP_DIN_PIN = GPIO_NUM_2;
+const uint8_t I2S_AMP_BCLK_PIN = GPIO_NUM_0;      // YELLOW --> Audio AMP Pin was 0
+const uint8_t I2S_AMP_LRCLK_PIN = GPIO_NUM_1;     // BLUE --> Audio AMP Pin 1
+const uint8_t I2S_AMP_DIN_PIN = GPIO_NUM_2;       // GREEN --> Audio AMP Pin was 2
 
 const uint8_t SD_CS_PIN = GPIO_NUM_7;
 
@@ -115,7 +116,10 @@ void setup()
     if (writeLogToSerial)
       Serial.println("Warming up...");
   }
-  
+
+  // leave LED on
+  digitalWrite(beetleLed,HIGH);
+
   if (writeLogToSerial)
      Serial.println("\nHere we go...");
 
@@ -236,6 +240,9 @@ void setup()
   
   amplifier.setVolume(defaultVolume);
   amplifier.closeFilter();
+
+//  amplifier.playSDMusic("/_omen.wav"); // MBJ 13 Sep
+
 //  amplifier.openFilter(bq_type_highpass, 500);
 //  amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
 
@@ -261,10 +268,10 @@ void loop()
     takeTimeOfFlightMeasurementAndWriteToSerial();
   }
 
-//  parseSerialCommand();
-//  delay(500);
-
-
+#if defined(ENABLE_PARSE_SERIAL)
+  parseSerialCommand();
+  delay(500);
+#endif
 }
 
 
@@ -891,19 +898,6 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
   }
   
   const char* curTrackName = amplifier.getTrackFilename(currentTrack);
-
-/*  
-17:44:49.355 -> Music List: 
-17:44:49.355 ->   0  -  /bass.wav
-17:44:49.355 ->   1  -  /HarpLow.wav
-17:44:49.355 ->   2  -  /HarpRasp.wav
-17:44:49.355 ->   3  -  /HiPitch.wav
-17:44:49.355 ->   4  -  /KeyClick.wav
-17:44:49.355 ->   5  -  /MedBuzz.wav
-17:44:49.355 ->   6  -  /pop.wav
-*/
-
-// set one:   left (HarpRasp==2), right (HarpLow.wav==1), ahead (pop==6), back (KeyClick==4)
 
   switch (*data)
   {
