@@ -23,7 +23,7 @@
 #define ENABLE_DBG
 // #define ENABLE_PARSE_SERIAL
 
-#include <DFRobot_MAX98357A.h>
+#include "DFRobot_MAX98357A_mercator.h"
 
 #include "mercator_secrets.c"
 
