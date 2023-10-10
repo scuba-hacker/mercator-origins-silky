@@ -29,11 +29,14 @@
 
 bool writeLogToSerial = true;
 
+/* // not currently used
 // I2C Light Sensor
 // see https://github.com/Starmbi/hp_BH1750
 #include <hp_BH1750.h>
 hp_BH1750 BH1750;
+*/
 
+/* // not currently used
 // I2C Time of Flight sensor. Adafruit VL53L4CX
 // see https://learn.adafruit.com/adafruit-vl53l4cx-time-of-flight-distance-sensor
 #include <vl53l4cx_class.h>
@@ -42,7 +45,7 @@ hp_BH1750 BH1750;
 #define VL53L4CX_DEFAULT_DEVICE_ADDRESS 0x12
 
 VL53L4CX sensor_vl53l4cx_sat(&DEV_I2C, XSHUT_PIN);
-
+*/
 //#define ENABLE_ELEGANT_OTA_AT_COMPILE_TIME
 #define ENABLE_ESPNOW_AT_COMPILE_TIME
 
@@ -123,6 +126,9 @@ void setup()
   if (writeLogToSerial)
      Serial.println("\nHere we go...");
 
+  delay(500);
+
+/*
   if (enableLightSensor || enableTimeOfFlightSensor) 
   {
     DEV_I2C.begin();
@@ -130,6 +136,7 @@ void setup()
 
   delay(500);
 
+  // light sensor and time of flight sensor are disabled
   if (enableLightSensor)
   {
     lightSensorAvailable = BH1750.begin(BH1750_TO_GROUND);// init the sensor with address pin connetcted to ground
@@ -186,6 +193,7 @@ void setup()
       timeOfFlightSensorAvailable = false;
     }
   }
+*/
 
 #ifdef ENABLE_OTA_AT_COMPILE_TIME
   if (enableOTAServer)
@@ -251,6 +259,7 @@ void setup()
 
 void loop() 
 {
+  /* Light sensor and gesture sensor disabled
   if (lightSensorAvailable)
   {
     float lux=0.0;
@@ -267,14 +276,16 @@ void loop()
     // deal with it later.
     takeTimeOfFlightMeasurementAndWriteToSerial();
   }
-
+*/
 #if defined(ENABLE_PARSE_SERIAL)
   parseSerialCommand();
   delay(500);
 #endif
 }
 
+/*
 
+// Light sensor and time of flight sensor disabled
 void getLux(float &l)
 {
   BH1750.start();         //starts a measurement
@@ -391,6 +402,7 @@ char* getTimeOfFlightSensorErrorString(VL53L4CX_Error e)
     default: return "Undefined enum";
   }
 }
+*/
 
 // ----- I WANT THIS CODE TO BE RUNNING FROM SD-card-API.c
 // ----- but the Arduino IDE won't compile it... Help!
