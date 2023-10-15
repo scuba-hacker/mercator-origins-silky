@@ -20,6 +20,8 @@
 
 //#include "SD-card-API.h"
 
+#define USB_SERIAL Serial
+
 #define ENABLE_DBG
 // #define ENABLE_PARSE_SERIAL
 
@@ -27,7 +29,7 @@
 
 #include "mercator_secrets.c"
 
-bool writeLogToSerial = true;
+bool writeLogToSerial = false;
 
 /* // not currently used
 // I2C Light Sensor
@@ -71,7 +73,23 @@ bool timeOfFlightSensorAvailable = false;
 #ifdef ENABLE_ESPNOW_AT_COMPILE_TIME
   #include <esp_now.h>
   #include <WiFi.h>
+
+// ************** ESPNow variables **************
+  uint16_t ESPNowMessagesDelivered = 0;
+  uint16_t ESPNowMessagesFailedToDeliver = 0;
+  
   const uint8_t ESPNOW_CHANNEL=1;
+  const uint8_t ESPNOW_NO_PEER_CHANNEL_FLAG = 0xFF;
+  const uint8_t ESPNOW_PRINTSCANRESULTS = 0;
+  const uint8_t ESPNOW_DELETEBEFOREPAIR = 0;
+  
+  esp_now_peer_info_t ESPNow_mako_peer;
+  bool isPairedWithMako = false;
+  
+  const int RESET_ESPNOW_SEND_RESULT = 0xFF;
+  esp_err_t ESPNowSendResult=(esp_err_t)RESET_ESPNOW_SEND_RESULT;
+
+  bool ESPNowActive = false;
 #endif
 
 const int beetleLed = 10;
@@ -106,7 +124,7 @@ void setup()
   pinMode(beetleLed,OUTPUT);
 
   // LED flash - we're alive!
-  Serial.begin(115200);
+  USB_SERIAL.begin(115200);
   int warmUp=10;
   
   while (warmUp--)
@@ -117,14 +135,14 @@ void setup()
     delay(250);
 
     if (writeLogToSerial)
-      Serial.println("Warming up...");
+      USB_SERIAL.println("Warming up...");
   }
 
   // leave LED on
   digitalWrite(beetleLed,HIGH);
 
   if (writeLogToSerial)
-     Serial.println("\nHere we go...");
+     USB_SERIAL.println("\nHere we go...");
 
   delay(500);
 
@@ -144,12 +162,12 @@ void setup()
     if (!lightSensorAvailable) 
     {
        if (writeLogToSerial)
-        Serial.println("No BH1750 sensor found!");
+        USB_SERIAL.println("No BH1750 sensor found!");
     }
     else
     {
       if (writeLogToSerial)
-       Serial.println("BH1750 sensor initialised ok");
+       USB_SERIAL.println("BH1750 sensor initialised ok");
     }
   }
 
@@ -167,21 +185,21 @@ void setup()
     if (initError == VL53L4CX_ERROR_NONE)
     {
       if (writeLogToSerial)
-        Serial.println("Adafruit VL53L4CX Time Of Flight Sensor Initialised ok");
+        USB_SERIAL.println("Adafruit VL53L4CX Time Of Flight Sensor Initialised ok");
 
       VL53L4CX_Error measureError = sensor_vl53l4cx_sat.VL53L4CX_StartMeasurement();  
 
       if (measureError == VL53L4CX_ERROR_NONE)
       {
         if (writeLogToSerial)
-           Serial.println("Adafruit VL53L4CX Time Of Flight Sensor Started Measurement ok");
+           USB_SERIAL.println("Adafruit VL53L4CX Time Of Flight Sensor Started Measurement ok");
         timeOfFlightSensorAvailable = true;
       }
       else
       {
         const char* TOFErrorBuffer = getTimeOfFlightSensorErrorString(measureError);
         if (writeLogToSerial)
-           Serial.printf("\nError: Adafruit VL53L4CX Time Of Flight Sensor startup measurement error: %i %s\n",measureError, TOFErrorBuffer);
+           USB_SERIAL.printf("\nError: Adafruit VL53L4CX Time Of Flight Sensor startup measurement error: %i %s\n",measureError, TOFErrorBuffer);
         timeOfFlightSensorAvailable = false;
       }
     }
@@ -189,7 +207,7 @@ void setup()
     {
       const char* TOFErrorBuffer = getTimeOfFlightSensorErrorString(initError);
       if (writeLogToSerial)
-         Serial.printf("Error: Adafruit VL53L4CX Time Of Flight Sensor initialisation error: %i %s\n",initError, TOFErrorBuffer); 
+         USB_SERIAL.printf("Error: Adafruit VL53L4CX Time Of Flight Sensor initialisation error: %i %s\n",initError, TOFErrorBuffer); 
       timeOfFlightSensorAvailable = false;
     }
   }
@@ -211,39 +229,39 @@ void setup()
 #ifdef ENABLE_ESPNOW_AT_COMPILE_TIME
   if (enableESPNow)
   {
-    configAndStartUpESPNow();    
+    configAndStartUpESPNow();
   }
 #endif
 
   while ( !amplifier.initI2S(I2S_AMP_BCLK_PIN, I2S_AMP_LRCLK_PIN, I2S_AMP_DIN_PIN) )
   {
    if (writeLogToSerial)
-     Serial.println("Init I2S Amplifier failed!");
+     USB_SERIAL.println("Init I2S Amplifier failed!");
     delay(3000);
   }
 
   if (writeLogToSerial)
-    Serial.println("Init I2S Amplifier succeeded");    
+    USB_SERIAL.println("Init I2S Amplifier succeeded");    
   
 //  testFileIO();   // uncomment if issue with flash/SD
 
   while (!amplifier.initSDCard(SD_CS_PIN))
   {
     if (writeLogToSerial)
-      Serial.println("Initialize SD card for I2S Amplifier failed !");
+      USB_SERIAL.println("Initialize SD card for I2S Amplifier failed !");
     delay(3000);
   }
 
   if (writeLogToSerial)
-     Serial.println("Initialize SD Card by I2S Amplifier succeeded");
+     USB_SERIAL.println("Initialize SD Card by I2S Amplifier succeeded");
   
   amplifier.scanSDMusic(musicList);
   
   if (writeLogToSerial)
   {
-    Serial.println("Scan SD Card by I2S Amplifier for music list succeeded");
+    USB_SERIAL.println("Scan SD Card by I2S Amplifier for music list succeeded");
     printMusicList();
-    Serial.println("Print SD Card by I2S Amplifier music list contents succeeded");
+    USB_SERIAL.println("Print SD Card by I2S Amplifier music list contents succeeded");
   }
   
   amplifier.setVolume(defaultVolume);
@@ -256,6 +274,24 @@ void setup()
 
 }
 
+char mako_espnow_buffer[256];
+
+void publishToMakoTestMessage(const char* testMessage)
+{     
+  if (isPairedWithMako && ESPNow_mako_peer.channel == ESPNOW_CHANNEL)
+  {
+    snprintf(mako_espnow_buffer,sizeof(mako_espnow_buffer),"S%s",testMessage);
+    if (writeLogToSerial)
+    {
+      USB_SERIAL.println("Sending ESP S msg to Mako...");
+      USB_SERIAL.println(mako_espnow_buffer);
+    }
+    
+    ESPNowSendResult = esp_now_send(ESPNow_mako_peer.peer_addr, (uint8_t*)mako_espnow_buffer, strlen(mako_espnow_buffer)+1);
+  }
+}
+
+char testMessageToMako[16]="";
 
 void loop() 
 {
@@ -265,7 +301,7 @@ void loop()
     float lux=0.0;
     getLux(lux);
     if (writeLogToSerial)
-     Serial.printf("Lux Sensor: %f, ",lux);
+     USB_SERIAL.printf("Lux Sensor: %f, ",lux);
   }
 
   if (timeOfFlightSensorAvailable)
@@ -281,6 +317,38 @@ void loop()
   parseSerialCommand();
   delay(500);
 #endif
+
+  if (isPairedWithMako && millis() % 3000 == 0)
+  {
+    digitalWrite(beetleLed,HIGH);
+    delay(100);
+    digitalWrite(beetleLed,LOW);
+    snprintf(testMessageToMako,sizeof(testMessageToMako),"%is uptime",millis() / 1000);
+    publishToMakoTestMessage(testMessageToMako);
+  }
+
+  if (!isPairedWithMako && millis() % 10000 == 0)
+  {
+    digitalWrite(beetleLed,HIGH);
+    delay(200);
+    digitalWrite(beetleLed,LOW);
+    delay(200);
+    digitalWrite(beetleLed,HIGH);
+    delay(200);
+    digitalWrite(beetleLed,LOW);
+    delay(200);
+    digitalWrite(beetleLed,HIGH);
+    delay(200);
+    digitalWrite(beetleLed,LOW);
+    // attempt to pair with mako every 10 seconds    
+    isPairedWithMako = pairWithPeer(ESPNow_mako_peer,"Mako",1); // 1 connection attempts
+    
+    if (isPairedWithMako)
+    {
+      // send message to mako to say connection ok
+      publishToMakoTestMessage("Conn Ok");
+    }
+  }
 }
 
 /*
@@ -320,28 +388,28 @@ void takeTimeOfFlightMeasurementAndWriteToSerial()
     if (writeLogToSerial)
     {
       snprintf(report, sizeof(report), "VL53L4CX Satellite: Count=%d, #Objs=%1d ", pMultiRangingData->StreamCount, no_of_object_found);
-      Serial.print(report);
+      USB_SERIAL.print(report);
       
       for (j = 0; j < no_of_object_found; j++) 
       {
         if (j != 0) 
         {
-          Serial.print("\r\n                               ");
+          USB_SERIAL.print("\r\n                               ");
         }
         
-        Serial.print("status=");
-        Serial.print(pMultiRangingData->RangeData[j].RangeStatus);
-        Serial.print(", D=");
-        Serial.print(pMultiRangingData->RangeData[j].RangeMilliMeter);
-        Serial.print("mm");
-        Serial.print(", Signal=");
-        Serial.print((float)pMultiRangingData->RangeData[j].SignalRateRtnMegaCps / 65536.0);
-        Serial.print(" Mcps, Ambient=");
-        Serial.print((float)pMultiRangingData->RangeData[j].AmbientRateRtnMegaCps / 65536.0);
-        Serial.print(" Mcps");
+        USB_SERIAL.print("status=");
+        USB_SERIAL.print(pMultiRangingData->RangeData[j].RangeStatus);
+        USB_SERIAL.print(", D=");
+        USB_SERIAL.print(pMultiRangingData->RangeData[j].RangeMilliMeter);
+        USB_SERIAL.print("mm");
+        USB_SERIAL.print(", Signal=");
+        USB_SERIAL.print((float)pMultiRangingData->RangeData[j].SignalRateRtnMegaCps / 65536.0);
+        USB_SERIAL.print(" Mcps, Ambient=");
+        USB_SERIAL.print((float)pMultiRangingData->RangeData[j].AmbientRateRtnMegaCps / 65536.0);
+        USB_SERIAL.print(" Mcps");
       }
       
-      Serial.println("");
+      USB_SERIAL.println("");
     }
         
     if (status == 0) 
@@ -407,143 +475,143 @@ char* getTimeOfFlightSensorErrorString(VL53L4CX_Error e)
 // ----- I WANT THIS CODE TO BE RUNNING FROM SD-card-API.c
 // ----- but the Arduino IDE won't compile it... Help!
 void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
-    Serial.printf("Listing directory: %s\n", dirname);
+    USB_SERIAL.printf("Listing directory: %s\n", dirname);
 
     File root = fs.open(dirname);
     if(!root){
-        Serial.printf("Failed to open directory: %s\n",root);
+        USB_SERIAL.printf("Failed to open directory: %s\n",root);
         return;
     }
     if(!root.isDirectory()){
-        Serial.printf("Not a directory: %s\n",root);
+        USB_SERIAL.printf("Not a directory: %s\n",root);
         return;
     }
 
     File file = root.openNextFile();
     while(file){
         if(file.isDirectory()){
-            Serial.print("  DIR : ");
-            Serial.println(file.name());
+            USB_SERIAL.print("  DIR : ");
+            USB_SERIAL.println(file.name());
             if(levels){
                 listDir(fs, file.path(), levels -1);
             }
         } else {
-            Serial.print("  FILE: ");
-            Serial.print(file.name());
-            Serial.print("  SIZE: ");
-            Serial.println(file.size());
+            USB_SERIAL.print("  FILE: ");
+            USB_SERIAL.print(file.name());
+            USB_SERIAL.print("  SIZE: ");
+            USB_SERIAL.println(file.size());
         }
         file = root.openNextFile();
     }
 }
 
 void createDir(fs::FS &fs, const char * path){
-    Serial.printf("Creating Dir: %s\n", path);
+    USB_SERIAL.printf("Creating Dir: %s\n", path);
     if(fs.mkdir(path)){
-        Serial.printf("Dir created: %s\n",path);
+        USB_SERIAL.printf("Dir created: %s\n",path);
     } else {
-        Serial.printf("mkdir failed: %s\n",path);
+        USB_SERIAL.printf("mkdir failed: %s\n",path);
     }
 }
 
 void removeDir(fs::FS &fs, const char * path){
-    Serial.printf("Removing Dir: %s\n", path);
+    USB_SERIAL.printf("Removing Dir: %s\n", path);
     if(fs.rmdir(path)){
-        Serial.printf("Dir removed: %s\n",path);
+        USB_SERIAL.printf("Dir removed: %s\n",path);
     } else {
-        Serial.printf("rmdir failed: %s\n",path);
+        USB_SERIAL.printf("rmdir failed: %s\n",path);
     }
 }
 
 void readFile(fs::FS &fs, const char * path){
-    Serial.printf("Reading file: %s\n", path);
+    USB_SERIAL.printf("Reading file: %s\n", path);
 
     File file = fs.open(path);
     if(!file){
-        Serial.printf("Failed to open file for reading: %s\n",path);
+        USB_SERIAL.printf("Failed to open file for reading: %s\n",path);
         return;
     }
 
-    Serial.printf("Read from file: %s\n",path);
+    USB_SERIAL.printf("Read from file: %s\n",path);
     while(file.available()){
-        Serial.write(file.read());
+        USB_SERIAL.write(file.read());
     }
     file.close();
 }
 
 void writeFile(fs::FS &fs, const char * path, const char * message){
-    Serial.printf("Writing file: %s\n", path);
+    USB_SERIAL.printf("Writing file: %s\n", path);
 
     File file = fs.open(path, FILE_WRITE);
     if(!file){
-        Serial.printf("Failed to open file for writing: %s\n",path);
+        USB_SERIAL.printf("Failed to open file for writing: %s\n",path);
         return;
     }
     if(file.print(message)){
-        Serial.printf("File written: %s\n",path);
+        USB_SERIAL.printf("File written: %s\n",path);
     } else {
-        Serial.printf("Write failed: %s\n",path);
+        USB_SERIAL.printf("Write failed: %s\n",path);
     }
     file.close();
 }
 
 void appendFile(fs::FS &fs, const char * path, const char * message){
-    Serial.printf("Appending to file: %s\n", path);
+    USB_SERIAL.printf("Appending to file: %s\n", path);
 
     File file = fs.open(path, FILE_APPEND);
     if(!file){
-        Serial.printf("Failed to open file for appending: %s\n",path);
+        USB_SERIAL.printf("Failed to open file for appending: %s\n",path);
         return;
     }
     if(file.print(message)){
-        Serial.printf("Message appended: %s\n",path);
+        USB_SERIAL.printf("Message appended: %s\n",path);
     } else {
-        Serial.printf("Append failed: %s\n",path);
+        USB_SERIAL.printf("Append failed: %s\n",path);
     }
     file.close();
 }
 
 void renameFile(fs::FS &fs, const char * path1, const char * path2){
-    Serial.printf("Renaming file %s to %s\n", path1, path2);
+    USB_SERIAL.printf("Renaming file %s to %s\n", path1, path2);
     if (fs.rename(path1, path2)) {
-        Serial.printf("File renamed: %s to %s\n",path1, path2);
+        USB_SERIAL.printf("File renamed: %s to %s\n",path1, path2);
     } else {
-        Serial.printf("Rename file failed: %s to %s\n",path1, path2);
+        USB_SERIAL.printf("Rename file failed: %s to %s\n",path1, path2);
     }
 }
 
 void deleteFile(fs::FS &fs, const char * path){
-    Serial.printf("Deleting file: %s\n", path);
+    USB_SERIAL.printf("Deleting file: %s\n", path);
     if(fs.remove(path)){
-        Serial.printf("File deleted: %s\n",path);
+        USB_SERIAL.printf("File deleted: %s\n",path);
     } else {
-        Serial.printf("Delete failed: %s\n",path);
+        USB_SERIAL.printf("Delete failed: %s\n",path);
     }
 }
 
 void testFileIO()
 {
-    Serial.print("SD Card Type: ");
+    USB_SERIAL.print("SD Card Type: ");
     
     if(cardType == CARD_MMC)
     {
-        Serial.println("MMC");
+        USB_SERIAL.println("MMC");
     } 
     else if(cardType == CARD_SD)
     {
-        Serial.println("SDSC");
+        USB_SERIAL.println("SDSC");
     } 
     else if(cardType == CARD_SDHC)
     {
-        Serial.println("SDHC");
+        USB_SERIAL.println("SDHC");
     } 
     else 
     {
-        Serial.println("UNKNOWN");
+        USB_SERIAL.println("UNKNOWN");
     }
 
     uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-    Serial.printf("SD Card Size: %lluMB\n", cardSize);
+    USB_SERIAL.printf("SD Card Size: %lluMB\n", cardSize);
 
     listDir(SD, "/", 0);
     createDir(SD, "/mydir");
@@ -557,8 +625,8 @@ void testFileIO()
     renameFile(SD, "/hello.txt", "/foo.txt");
     readFile(SD, "/foo.txt");
     testFlashFileIO(SD, "/test.txt");
-    Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
-    Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+    USB_SERIAL.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
+    USB_SERIAL.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
 }
 
 void testFlashFileIO(fs::FS &fs, const char * path){
@@ -580,16 +648,16 @@ void testFlashFileIO(fs::FS &fs, const char * path){
             len -= toRead;
         }
         end = millis() - start;
-        Serial.printf("%u bytes read for %u ms file: %s\n",flen, end, path);
+        USB_SERIAL.printf("%u bytes read for %u ms file: %s\n",flen, end, path);
         file.close();
     } else {
-        Serial.printf("Failed to open file for reading: %s\n",path);
+        USB_SERIAL.printf("Failed to open file for reading: %s\n",path);
     }
 
 
     file = fs.open(path, FILE_WRITE);
     if(!file){
-        Serial.printf("Failed to open file for writing: %s\n",path);
+        USB_SERIAL.printf("Failed to open file for writing: %s\n",path);
         return;
     }
 
@@ -599,7 +667,7 @@ void testFlashFileIO(fs::FS &fs, const char * path){
         file.write(buf, 512);
     }
     end = millis() - start;
-    Serial.printf("%u bytes written for %u ms file: %s\n", 2048 * 512, end, path);
+    USB_SERIAL.printf("%u bytes written for %u ms file: %s\n", 2048 * 512, end, path);
     file.close(); 
 }
 
@@ -610,7 +678,7 @@ void toggleOTAActive()
    if (otaActiveListening)
    {
      asyncWebServer.end();
-     Serial.println("OTA Disabled");
+     USB_SERIAL.println("OTA Disabled");
      otaActiveListening=false;
    }
    else
@@ -618,12 +686,12 @@ void toggleOTAActive()
      if (WiFi.status() == WL_CONNECTED)
      {
        asyncWebServer.begin();
-       Serial.printf("OTA Enabled");
+       USB_SERIAL.printf("OTA Enabled");
        otaActiveListening=true;
      }
      else
      {
-       Serial.println("Error: Enable Wifi First");
+       USB_SERIAL.println("Error: Enable Wifi First");
      }
    }  
 
@@ -638,16 +706,16 @@ void toggleWiFiActive()
       if (otaActiveListening)
       {
          asyncWebServer.end();
-         Serial.println("OTA Disabled");
+         USB_SERIAL.println("OTA Disabled");
          otaActiveListening=false;
       }
 
        WiFi.disconnect();
-       Serial.printf("Wifi Disabled");
+       USB_SERIAL.printf("Wifi Disabled");
    }
    else
    {
-     Serial.printf("Wifi Connecting");
+     USB_SERIAL.printf("Wifi Connecting");
 
     // startup Wifi only
     if (!connectWiFiNoOTANotM5(ssid_1, password_1, label_1, timeout_1))
@@ -671,20 +739,20 @@ bool connectWiFiNoOTANotM5(const char* _ssid, const char* _password, const char*
   WiFi.begin(_ssid, _password);
 
   // Wait for connection for max of timeout/1000 seconds
-  Serial.printf("%s Wifi", label);
+  USB_SERIAL.printf("%s Wifi", label);
   int count = timeout / 500;
   while (WiFi.status() != WL_CONNECTED && --count > 0)
   {
     // check for cancellation button - top button.
-    Serial.print(".");
+    USB_SERIAL.print(".");
     delay(500);
   }
-  Serial.print("\n\n");
+  USB_SERIAL.print("\n\n");
 
   if (WiFi.status() == WL_CONNECTED)
   {
-    Serial.printf("%s\n\n",WiFi.localIP().toString());
-    Serial.println(WiFi.macAddress());
+    USB_SERIAL.printf("%s\n\n",WiFi.localIP().toString());
+    USB_SERIAL.println(WiFi.macAddress());
     connected = true;
   }
 
@@ -705,14 +773,14 @@ bool setupOTAWebServerNotM5(const char* _ssid, const char* _password, const char
   WiFi.begin(_ssid, _password);
 
   // Wait for connection for max of timeout/1000 seconds
-  Serial.printf("%s Wifi", label);
+  USB_SERIAL.printf("%s Wifi", label);
   int count = timeout / 500;
   while (WiFi.status() != WL_CONNECTED && --count > 0)
   {
-    Serial.print(".");
+    USB_SERIAL.print(".");
     delay(500);
   }
-  Serial.print("\n\n");
+  USB_SERIAL.print("\n\n");
 
   if (WiFi.status() == WL_CONNECTED)
   {
@@ -723,8 +791,8 @@ bool setupOTAWebServerNotM5(const char* _ssid, const char* _password, const char
     AsyncElegantOTA.begin(&asyncWebServer);    // Start AsyncElegantOTA
     asyncWebServer.begin();
 
-    Serial.printf("%s\n\n",WiFi.localIP().toString());
-    Serial.println(WiFi.macAddress());
+    USB_SERIAL.printf("%s\n\n",WiFi.localIP().toString());
+    USB_SERIAL.println(WiFi.macAddress());
     connected = true;
 
   }
@@ -745,16 +813,16 @@ void printMusicList(void)
 {
   uint8_t i = 0;
   if(musicList[i].length()){
-    Serial.println("\nMusic List: ");
+    USB_SERIAL.println("\nMusic List: ");
   }else{
-    Serial.println("The SD card audio file scan is empty, please check whether there are audio files in the SD card that meet the format!");
+    USB_SERIAL.println("The SD card audio file scan is empty, please check whether there are audio files in the SD card that meet the format!");
   }
 
   while(musicList[i].length()){
-    Serial.print("\t");
-    Serial.print(i);
-    Serial.print("  -  ");
-    Serial.println(musicList[i]);
+    USB_SERIAL.print("\t");
+    USB_SERIAL.print(i);
+    USB_SERIAL.print("  -  ");
+    USB_SERIAL.println(musicList[i]);
     i++;
   }
 }
@@ -775,12 +843,12 @@ void parseSerialCommand(void)
    * For example: (1) set high-pass filter, filter the audio data below 500: hp-500
    *      (2) close filter: closeFilter-
    */
-  if(Serial.available()){   // Detect whether there is an available serial command
-    cmd = Serial.readStringUntil('-');   // Read the specified terminator character string, used to cut and identify the serial command.  The same comment won't repeat later.
+  if(USB_SERIAL.available()){   // Detect whether there is an available serial command
+    cmd = USB_SERIAL.readStringUntil('-');   // Read the specified terminator character string, used to cut and identify the serial command.  The same comment won't repeat later.
 
     if(cmd.equals("hp")){   // Determine if it’s the command type for setting high-pass filter
-      Serial.println("Setting a High-Pass filter...\n");
-      value =Serial.parseFloat();   // Parse character string and return floating point number
+      USB_SERIAL.println("Setting a High-Pass filter...\n");
+      value =USB_SERIAL.parseFloat();   // Parse character string and return floating point number
 
       /**
        * @brief Open audio filter
@@ -792,13 +860,13 @@ void parseSerialCommand(void)
 
 
     }else if(cmd.equals("lp")){   // Determine if it's the command type for setting low-pass filter
-      Serial.println("Setting a Low-Pass filter...\n");
-      value =Serial.parseFloat();
+      USB_SERIAL.println("Setting a Low-Pass filter...\n");
+      value =USB_SERIAL.parseFloat();
 
       amplifier.openFilter(bq_type_lowpass, value);
 
     }else if(cmd.equals("closeFilter")){   // Determine if it's the command type for closing filter
-      Serial.println("Closing filter...\n");
+      USB_SERIAL.println("Closing filter...\n");
 
       /**
        * @brief Close the audio filter
@@ -806,8 +874,8 @@ void parseSerialCommand(void)
       amplifier.closeFilter();
 
     }else if(cmd.equals("vol")){   // Determine if it's the command type for setting volume
-      Serial.println("Setting volume...\n");
-      value =Serial.parseFloat();
+      USB_SERIAL.println("Setting volume...\n");
+      value =USB_SERIAL.parseFloat();
 
       /**
        * @brief Set volume
@@ -817,7 +885,7 @@ void parseSerialCommand(void)
       amplifier.setVolume(value);
 
     }else if(cmd.equals("start")){   // Determine if it's the command type for starting playback
-      Serial.println("starting amplifier...\n");
+      USB_SERIAL.println("starting amplifier...\n");
 
       /**
        * @brief SD card music playback control interface
@@ -832,19 +900,19 @@ void parseSerialCommand(void)
       amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
 
     }else if(cmd.equals("pause")){   // Determine if it's the command type for pausing playback
-      Serial.println("Pause amplifier...\n");
+      USB_SERIAL.println("Pause amplifier...\n");
 
       // The same as above
       amplifier.SDPlayerControl(SD_AMPLIFIER_PAUSE);
 
     }else if(cmd.equals("stop")){   // Determine if it's the command type for stopping playback
-      Serial.println("Stopping amplifier...\n");
+      USB_SERIAL.println("Stopping amplifier...\n");
 
       // The same as above
       amplifier.SDPlayerControl(SD_AMPLIFIER_STOP);
 
     }else if(cmd.equals("musicList")){   // Determine if it's the command type for printing the list of the music files that can be played currently
-      Serial.println("Scanning music list...\n");
+      USB_SERIAL.println("Scanning music list...\n");
 
       /**
        * @brief Scan the music files in WAV format in the SD card
@@ -859,7 +927,7 @@ void parseSerialCommand(void)
       printMusicList();
 
     }else if(cmd.equals("changeMusic")){   // Determine if it's the command type for changing songs according to the music list
-      cmd = musicList[Serial.parseInt()];
+      cmd = musicList[USB_SERIAL.parseInt()];
 
       /**
        * @brief Play music files in the SD card
@@ -868,14 +936,14 @@ void parseSerialCommand(void)
        * @return None
        */
       if(cmd.length()){
-        Serial.println("Changing Music...\n");
+        USB_SERIAL.println("Changing Music...\n");
         amplifier.playSDMusic(cmd.c_str());
       }else{
-        Serial.println("The currently selected music file is incorrect!\n");
+        USB_SERIAL.println("The currently selected music file is incorrect!\n");
       }
 
     }else{   // Unknown command type
-      Serial.println("Help : \n \
+      USB_SERIAL.println("Help : \n \
       Currently available commands (format: cmd-value):\n \
         Start playback: e.g. start-\n \
         Pause playback: e.g. pause-\n \
@@ -888,11 +956,23 @@ void parseSerialCommand(void)
         Set volume: e.g. vol-5.0\n \
       For the detailed meaning, please refer to the code comments of this demo.\n");   //
     }
-    while(Serial.read() >= 0);   // Clear the remaining data in the serial port
+    while(USB_SERIAL.read() >= 0);   // Clear the remaining data in the serial port
   }
 }
 
 #ifdef ENABLE_ESPNOW_AT_COMPILE_TIME
+
+void OnESPNowDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) 
+{
+  if (status == ESP_NOW_SEND_SUCCESS)
+  {
+    ESPNowMessagesDelivered++;
+  }
+  else
+  {
+    ESPNowMessagesFailedToDeliver++;
+  }
+}
 
 char ESPNowbuffer[100];
 
@@ -904,9 +984,9 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
     char macStr[18];
     snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
              mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-    Serial.printf("Last Packet Recv from: %s\n",macStr);
-    Serial.printf("Last Packet Recv 1st Byte: '%c'\n",*data);
-    Serial.printf("Last Packet Recv Length: %d\n",data_len);
+    USB_SERIAL.printf("Last Packet Recv from: %s\n",macStr);
+    USB_SERIAL.printf("Last Packet Recv 1st Byte: '%c'\n",*data);
+    USB_SERIAL.printf("Last Packet Recv Length: %d\n",data_len);
   }
   
   const char* curTrackName = amplifier.getTrackFilename(currentTrack);
@@ -934,7 +1014,7 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
       if (millis() > lastAudioGuidancePlayedAt + audioGuidanceMinimumGap)
       {
         if (writeLogToSerial)
-           Serial.printf("1.Command %c... Play track\n",*data);
+           USB_SERIAL.printf("1.Command %c... Play track\n",*data);
 
         lastAudioGuidancePlayedAt = millis();
 
@@ -942,14 +1022,14 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
         currentTrackFilename = amplifier.getTrackFilename(currentTrack);
 
         if (writeLogToSerial)
-          Serial.printf("Command %c... Play track %d %s\n",*data,currentTrack,currentTrackFilename);
+          USB_SERIAL.printf("Command %c... Play track %d %s\n",*data,currentTrack,currentTrackFilename);
 
         amplifier.playSDMusic(currentTrackFilename);
       }
       else
       {
         if (writeLogToSerial)
-          Serial.printf("Command %c... wait for minimum gap\n",*data);
+          USB_SERIAL.printf("Command %c... wait for minimum gap\n",*data);
       }
       break;
     }
@@ -958,25 +1038,25 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
       if (amplifier.getAmplifierState() == SD_AMPLIFIER_PLAY)
       {
         if (writeLogToSerial)
-          Serial.printf("Command A... Pause Track %d %s\n",currentTrack,curTrackName);
+          USB_SERIAL.printf("Command A... Pause Track %d %s\n",currentTrack,curTrackName);
         amplifier.SDPlayerControl(SD_AMPLIFIER_PAUSE);
       }
       else if (amplifier.getAmplifierState() == SD_AMPLIFIER_STOP)
       {
         if (writeLogToSerial)
-          Serial.printf("Command A... Unstop/Play Track %d %s\n",currentTrack,curTrackName);
+          USB_SERIAL.printf("Command A... Unstop/Play Track %d %s\n",currentTrack,curTrackName);
         amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
       }
       else if (amplifier.getAmplifierState() == SD_AMPLIFIER_PAUSE)
       {
         if (writeLogToSerial)
-          Serial.printf("Command A... Unpause Track %d %s\n",currentTrack,curTrackName);
+          USB_SERIAL.printf("Command A... Unpause Track %d %s\n",currentTrack,curTrackName);
         amplifier.SDPlayerControl(SD_AMPLIFIER_PLAY);
       }
       else
       {
         if (writeLogToSerial)
-          Serial.printf("Command A... Pause/? Track %d %s\n",currentTrack,curTrackName);
+          USB_SERIAL.printf("Command A... Pause/? Track %d %s\n",currentTrack,curTrackName);
         amplifier.SDPlayerControl(SD_AMPLIFIER_PAUSE);
       }
       
@@ -988,7 +1068,7 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
       volume = (volume >= maxVolume ? minVolume : volume+1);
       amplifier.setVolume(volume);
       if (writeLogToSerial)
-        Serial.printf("Command B... Cycle Volume Up: %f\n",volume);
+        USB_SERIAL.printf("Command B... Cycle Volume Up: %f\n",volume);
       break;
     }
     
@@ -996,7 +1076,7 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
     {
       amplifier.playSDMusic(musicList[getNextTrack()].c_str());
       if (writeLogToSerial)
-        Serial.printf("Command C... Skip to next track %d %s\n",currentTrack,amplifier.getTrackFilename(currentTrack));
+        USB_SERIAL.printf("Command C... Skip to next track %d %s\n",currentTrack,amplifier.getTrackFilename(currentTrack));
       break;
     }
     
@@ -1004,7 +1084,7 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
     {
       amplifier.SDPlayerControl(SD_AMPLIFIER_STOP);
       if (writeLogToSerial)
-        Serial.printf("Command D... Stop playback\n");
+        USB_SERIAL.printf("Command D... Stop playback\n");
       break;
     }
     
@@ -1016,7 +1096,7 @@ void OnESPNowDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len
         volume = *(data+1);
         amplifier.setVolume(volume);
         if (writeLogToSerial)
-          Serial.printf("Command E... Set Volume: %f\n",volume);
+          USB_SERIAL.printf("Command E... Set Volume: %f\n",volume);
       }
       else
       {
@@ -1036,21 +1116,21 @@ uint8_t getNextTrack()
   return currentTrack;
 }
 
-void InitESPNow() {
+void InitESPNow() 
+{
   WiFi.disconnect();
+  
   if (esp_now_init() == ESP_OK) 
   {
     if (writeLogToSerial)
-      Serial.println("ESPNow Init Success");
+      USB_SERIAL.println("ESPNow Init Success");
+    ESPNowActive = true;
   }
   else 
   {
     if (writeLogToSerial)
-      Serial.println("ESPNow Init Failed");
-    // Retry InitESPNow, add a counte and then restart?
-    // InitESPNow();
-    // or Simply Restart
-    ESP.restart();
+      USB_SERIAL.println("ESPNow Init Failed");
+    ESPNowActive = false;
   }
 }
 
@@ -1066,20 +1146,28 @@ void configESPNowDeviceAP()
   {
     if (!result) 
     {
-      Serial.println("AP Config failed.");
+      USB_SERIAL.println("AP Config failed.");
     } 
     else 
     {
-      Serial.printf("AP Config Success. Broadcasting with AP: %s\n",String(SSID).c_str());
-      Serial.printf("WiFi Channel: %d\n",WiFi.channel());
+      USB_SERIAL.printf("AP Config Success. Broadcasting with AP: %s\n",String(SSID).c_str());
+      USB_SERIAL.printf("WiFi Channel: %d\n",WiFi.channel());
     }
   }  
+
+  // Init ESPNow with a fallback logic
+  InitESPNow();
+  
+  // Once ESPNow is successfully Init, we will register for recv CB to
+  // get recv packer info.
+  esp_now_register_recv_cb(OnESPNowDataRecv);
+  esp_now_register_send_cb(OnESPNowDataSent);
 }
 
 void configAndStartUpESPNow()
 {
   if (writeLogToSerial)
-    Serial.println("ESPNow/Basic Example");
+    USB_SERIAL.println("ESPNow/Basic Example");
   
   //Set device in AP mode to begin with
   WiFi.mode(WIFI_AP);
@@ -1089,14 +1177,275 @@ void configAndStartUpESPNow()
   
   // This is the mac address of this peer in AP Mode
   if (writeLogToSerial)
-    Serial.print("AP MAC: "); Serial.println(WiFi.softAPmacAddress());
-  
-  // Init ESPNow with a fallback logic
-  InitESPNow();
-  
-  // Once ESPNow is successfully Init, we will register for recv CB to
-  // get recv packer info.
-  esp_now_register_recv_cb(OnESPNowDataRecv);
+    USB_SERIAL.print("AP MAC: "); USB_SERIAL.println(WiFi.softAPmacAddress()); 
 }
 
+bool TeardownESPNow()
+{
+  bool result = false;
+
+  if (enableESPNow && ESPNowActive)
+  {
+    WiFi.disconnect();
+    ESPNowActive = false;
+    result = true;
+  }
+  
+  return result;
+}
+
+// Scan for peers in AP mode
+bool ESPNowScanForPeer(esp_now_peer_info_t& peer, const char* peerSSIDPrefix)
+{
+  bool peerFound = false;
+
+  if (writeLogToSerial)
+    USB_SERIAL.println("Scanning Networks...");
+
+  int8_t scanResults = WiFi.scanNetworks();
+  if (writeLogToSerial)
+    USB_SERIAL.println("Complete");
+  
+  // reset on each scan 
+  memset(&peer, 0, sizeof(peer));
+
+  if (writeLogToSerial)
+    USB_SERIAL.println("");
+
+  if (scanResults == 0) 
+  {   
+    if (writeLogToSerial)
+      USB_SERIAL.println("No WiFi devices in AP Mode found");
+
+    peer.channel = ESPNOW_NO_PEER_CHANNEL_FLAG;
+  } 
+  else 
+  {
+    if (writeLogToSerial)
+    {
+      USB_SERIAL.print("Found "); USB_SERIAL.print(scanResults); USB_SERIAL.println(" devices ");
+    }
+    
+    for (int i = 0; i < scanResults; ++i) 
+    {
+      // Print SSID and RSSI for each device found
+      String SSID = WiFi.SSID(i);
+      int32_t RSSI = WiFi.RSSI(i);
+      String BSSIDstr = WiFi.BSSIDstr(i);
+
+      if (writeLogToSerial && ESPNOW_PRINTSCANRESULTS) 
+      {
+        USB_SERIAL.print(i + 1);
+        USB_SERIAL.print(": ");
+        USB_SERIAL.print(SSID);
+        USB_SERIAL.print(" (");
+        USB_SERIAL.print(RSSI);
+        USB_SERIAL.print(")");
+        USB_SERIAL.println("");
+      }
+      
+      delay(10);
+      
+      // Check if the current device starts with the peerSSIDPrefix
+      if (SSID.indexOf(peerSSIDPrefix) == 0) 
+      {
+        if (writeLogToSerial)
+        {
+          // SSID of interest
+          USB_SERIAL.println("Found a peer.");
+          USB_SERIAL.print(i + 1); USB_SERIAL.print(": "); USB_SERIAL.print(SSID); USB_SERIAL.print(" ["); USB_SERIAL.print(BSSIDstr); USB_SERIAL.print("]"); USB_SERIAL.print(" ("); USB_SERIAL.print(RSSI); USB_SERIAL.print(")"); USB_SERIAL.println("");
+        }
+                
+        // Get BSSID => Mac Address of the Slave
+        int mac[6];
+        if ( 6 == sscanf(BSSIDstr.c_str(), "%x:%x:%x:%x:%x:%x",  &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5] ) ) 
+        {
+          for (int ii = 0; ii < 6; ++ii ) 
+          {
+            peer.peer_addr[ii] = (uint8_t) mac[ii];
+          }
+        }
+
+        peer.channel = ESPNOW_CHANNEL; // pick a channel
+        peer.encrypt = 0; // no encryption
+
+        peer.priv = (void*)peerSSIDPrefix;   // distinguish between different peers
+
+        peerFound = true;
+        // we are planning to have only one slave in this example;
+        // Hence, break after we find one, to be a bit efficient
+        break;
+      }
+    }
+  }
+
+  if (peerFound) 
+  {
+    if (writeLogToSerial)
+      USB_SERIAL.println("Peer Found");
+  } 
+  else 
+  {
+    if (writeLogToSerial)
+      USB_SERIAL.println("Peer Not Found");
+  }
+  
+  // clean up ram
+  WiFi.scanDelete();
+
+  return peerFound;
+}
+
+bool pairWithPeer(esp_now_peer_info_t& peer, const char* peerSSIDPrefix, int maxAttempts)
+{
+  bool isPaired = false;
+  while(maxAttempts-- && !isPaired)
+  {
+    bool result = ESPNowScanForPeer(peer,peerSSIDPrefix);
+
+    // check if peer channel is defined
+    if (result && peer.channel == ESPNOW_CHANNEL)
+    { 
+      isPaired = ESPNowManagePeer(peer);
+      if (writeLogToSerial)
+        USB_SERIAL.printf("%s Pair ok\n",peerSSIDPrefix);
+    }
+    else
+    {
+      peer.channel = ESPNOW_NO_PEER_CHANNEL_FLAG;
+      if (writeLogToSerial)
+        USB_SERIAL.printf("%s Pair fail\n",peerSSIDPrefix);
+    }
+  }
+
+  delay(1000);
+    
+  return isPaired;
+}
+
+// Check if the peer is already paired with the master.
+// If not, pair the peer with master
+bool ESPNowManagePeer(esp_now_peer_info_t& peer)
+{
+  bool result = false;
+  
+  if (peer.channel == ESPNOW_CHANNEL) 
+  {
+    if (ESPNOW_DELETEBEFOREPAIR) 
+    {
+      ESPNowDeletePeer(peer);
+    }
+
+    if (writeLogToSerial)
+      USB_SERIAL.print("Peer Status: ");
+      
+    // check if the peer exists
+    bool exists = esp_now_is_peer_exist(peer.peer_addr);
+    
+    if (exists) 
+    {
+      // Peer already paired.
+      if (writeLogToSerial)
+        USB_SERIAL.println("Already Paired");
+
+      result = true;
+    } 
+    else 
+    {
+      // Peer not paired, attempt pair
+      esp_err_t addStatus = esp_now_add_peer(&peer);
+      
+      if (addStatus == ESP_OK) 
+      {
+        // Pair success
+        if (writeLogToSerial)
+          USB_SERIAL.println("Pair success");
+        result = true;
+      } 
+      else if (addStatus == ESP_ERR_ESPNOW_NOT_INIT) 
+      {
+        // How did we get so far!!
+        if (writeLogToSerial)
+          USB_SERIAL.println("ESPNOW Not Init");
+        result = false;
+      } 
+      else if (addStatus == ESP_ERR_ESPNOW_ARG) 
+      {
+        if (writeLogToSerial)
+            USB_SERIAL.println("Invalid Argument");
+        result = false;
+      } 
+      else if (addStatus == ESP_ERR_ESPNOW_FULL) 
+      {
+        if (writeLogToSerial)
+            USB_SERIAL.println("Peer list full");
+        result = false;
+      } 
+      else if (addStatus == ESP_ERR_ESPNOW_NO_MEM) 
+      {
+        if (writeLogToSerial)
+          USB_SERIAL.println("Out of memory");
+        result = false;
+      } 
+      else if (addStatus == ESP_ERR_ESPNOW_EXIST) 
+      {
+        if (writeLogToSerial)
+          USB_SERIAL.println("Peer Exists");
+        result = true;
+      } 
+      else 
+      {
+        if (writeLogToSerial)
+          USB_SERIAL.println("Not sure what happened");
+        result = false;
+      }
+    }
+  }
+  else 
+  {
+    // No peer found to process
+    if (writeLogToSerial)
+      USB_SERIAL.println("No Peer found to process");
+    
+    result = false;
+  }
+
+  return result;
+}
+
+void ESPNowDeletePeer(esp_now_peer_info_t& peer) 
+{
+  if (peer.channel != ESPNOW_NO_PEER_CHANNEL_FLAG)
+  {
+    esp_err_t delStatus = esp_now_del_peer(peer.peer_addr);
+    
+    if (writeLogToSerial)
+    {
+      USB_SERIAL.print("Peer Delete Status: ");
+      if (delStatus == ESP_OK) 
+      {
+        // Delete success
+        USB_SERIAL.println("ESPNowDeletePeer::Success");
+      } 
+      else if (delStatus == ESP_ERR_ESPNOW_NOT_INIT) 
+      {
+        // How did we get so far!!
+        USB_SERIAL.println("ESPNowDeletePeer::ESPNOW Not Init");
+      } 
+      else if (delStatus == ESP_ERR_ESPNOW_ARG) 
+      {
+        USB_SERIAL.println("ESPNowDeletePeer::Invalid Argument");
+      } 
+      else if (delStatus == ESP_ERR_ESPNOW_NOT_FOUND) 
+      {
+        USB_SERIAL.println("ESPNowDeletePeer::Peer not found.");
+      } 
+      else 
+      {
+        USB_SERIAL.println("Not sure what happened");
+      }
+    }
+  }
+}
+ 
 #endif
